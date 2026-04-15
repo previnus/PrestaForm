@@ -47,6 +47,9 @@ class Prestaform extends Module
     private function installDb(): bool
     {
         $sql = file_get_contents(__DIR__ . '/sql/install.sql');
+        if ($sql === false) {
+            return false;
+        }
         $sql = str_replace('PREFIX_', _DB_PREFIX_, $sql);
         // Split on semicolons to run multiple statements
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $query) {
@@ -169,7 +172,7 @@ class Prestaform extends Module
                 return $renderer->render($form, $actionUrl, $token, $condRepo->findByForm((int) $form['id_form']));
             },
             $output
-        );
+        ) ?? $output;
     }
 
     private function parseShortcodeAttrs(string $attrString): array
