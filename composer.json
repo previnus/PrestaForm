@@ -1,0 +1,24 @@
+{
+    "name": "prestaform/prestaform",
+    "description": "CF7-style form builder for PrestaShop 9",
+    "type": "prestashop-module",
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "PrestaForm\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PrestaForm\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}
