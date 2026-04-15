@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pf_webhook_log` (
     `date_add`      DATETIME NOT NULL,
     PRIMARY KEY (`id_log`),
     KEY `id_webhook` (`id_webhook`),
-    KEY `id_submission` (`id_submission`)
+    KEY `id_submission` (`id_submission`),
+    KEY `webhook_date` (`id_webhook`, `date_add`),
+    KEY `date_add` (`date_add`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pf_conditions` (
