@@ -1,0 +1,7 @@
+DROP TABLE IF EXISTS `PREFIX_pf_settings`;
+DROP TABLE IF EXISTS `PREFIX_pf_email_routes`;
+DROP TABLE IF EXISTS `PREFIX_pf_conditions`;
+DROP TABLE IF EXISTS `PREFIX_pf_webhook_log`;
+DROP TABLE IF EXISTS `PREFIX_pf_webhooks`;
+DROP TABLE IF EXISTS `PREFIX_pf_submissions`;
+DROP TABLE IF EXISTS `PREFIX_pf_forms`;
