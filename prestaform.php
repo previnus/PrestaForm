@@ -83,12 +83,14 @@ class Prestaform extends Module
     {
         $langs = Language::getLanguages(false);
 
-        // Parent tab
+        // In PS9 the sidebar uses 0 for top-level items; -1 hides from menu.
+        // We want a visible top-level "PrestaForm" entry.
         $parent = new Tab();
         $parent->class_name = 'AdminPrestaFormMain';
-        $parent->module = $this->name;
-        $parent->id_parent = 0;
-        $parent->icon = 'library_books';
+        $parent->module     = $this->name;
+        $parent->id_parent  = 0;
+        $parent->active     = 1;
+        $parent->icon       = 'library_books';
         foreach ($langs as $lang) {
             $parent->name[$lang['id_lang']] = 'PrestaForm';
         }
@@ -105,8 +107,9 @@ class Prestaform extends Module
         foreach ($children as [$class, $label]) {
             $tab = new Tab();
             $tab->class_name = $class;
-            $tab->module = $this->name;
-            $tab->id_parent = (int) $parent->id;
+            $tab->module     = $this->name;
+            $tab->id_parent  = (int) $parent->id;
+            $tab->active     = 1;
             foreach ($langs as $lang) {
                 $tab->name[$lang['id_lang']] = $label;
             }
@@ -133,6 +136,16 @@ class Prestaform extends Module
             }
         }
         return true;
+    }
+
+    /**
+     * Adds a "Configure" button on the Modules page that goes straight to Forms.
+     */
+    public function getContent(): void
+    {
+        Tools::redirectAdmin(
+            $this->context->link->getAdminLink('AdminPrestaFormForms')
+        );
     }
 
     // ── Hooks ────────────────────────────────────────────────────────────────
