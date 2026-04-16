@@ -90,7 +90,24 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             return;
         }
 
+        $validStatuses   = ['draft', 'active'];
+        $validCaptchas   = ['none', 'recaptcha_v2', 'recaptcha_v3', 'turnstile'];
+        $status          = Tools::getValue('status');
+        $captchaProvider = Tools::getValue('captcha_provider');
+
+        if (!in_array($status, $validStatuses, true)) {
+            $this->errors[] = 'Invalid status value.';
+            return;
+        }
+        if (!in_array($captchaProvider, $validCaptchas, true)) {
+            $this->errors[] = 'Invalid CAPTCHA provider.';
+            return;
+        }
+
         $retentionRaw = Tools::getValue('retention_days');
+        if ($retentionRaw === 'custom') {
+            $retentionRaw = Tools::getValue('retention_days_custom');
+        }
         $repo->save([
             'id_form'          => $id ?: null,
             'name'             => Tools::getValue('name'),
@@ -98,8 +115,8 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             'template'         => Tools::getValue('template'),
             'custom_css'       => Tools::getValue('custom_css'),
             'success_message'  => Tools::getValue('success_message'),
-            'status'           => Tools::getValue('status'),
-            'captcha_provider' => Tools::getValue('captcha_provider'),
+            'status'           => $status,
+            'captcha_provider' => $captchaProvider,
             'retention_days'   => $retentionRaw !== '' ? (int) $retentionRaw : null,
         ]);
 
@@ -156,8 +173,14 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             return;
         }
 
+        $url = $webhook['url'];
+        if (!preg_match('#^https?://#i', $url)) {
+            $this->outputJson(['success' => false, 'message' => 'Invalid webhook URL scheme.']);
+            return;
+        }
+
         $testPayload = ['_test' => true, 'timestamp' => date('c')];
-        $ch = curl_init($webhook['url']);
+        $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => (int) $webhook['timeout_seconds'],
