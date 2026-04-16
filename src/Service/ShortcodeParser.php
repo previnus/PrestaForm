@@ -91,9 +91,8 @@ class ShortcodeParser
                     $options[] = ['label' => $value, 'value' => $value];
                 }
                 $i++;
-            } elseif (isset($tokens[$i + 1]) && $this->isQuoted($tokens[$i + 1]) && !str_contains($token, '_')) {
+            } elseif (isset($tokens[$i + 1]) && $this->isQuoted($tokens[$i + 1])) {
                 // bare_word "quoted value" → named param (e.g. placeholder "Name")
-                // Words with underscores are treated as boolean flags (e.g. include_blank)
                 $params[$token] = trim($tokens[$i + 1], '"\'');
                 $i += 2;
             } else {

@@ -65,8 +65,11 @@ class ShortcodeParserTest extends TestCase
 
     public function testParsesBooleanFlag(): void
     {
-        $fields = $this->parser->parse('[select dept include_blank "A" "B"]');
+        $fields = $this->parser->parse('[select dept "A" "B" include_blank]');
         $this->assertContains('include_blank', $fields[0]['flags']);
+        $this->assertCount(2, $fields[0]['options']);
+        $this->assertSame('A', $fields[0]['options'][0]['label']);
+        $this->assertSame('B', $fields[0]['options'][1]['label']);
     }
 
     public function testParsesSubmitWithoutName(): void
