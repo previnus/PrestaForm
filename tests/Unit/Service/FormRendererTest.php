@@ -148,4 +148,59 @@ class FormRendererTest extends TestCase
         $this->assertStringContainsString('pfConditions', $html);
         $this->assertStringContainsString('"target_field":"msg"', $html);
     }
+
+    public function testAddsMultipartEnctypeForFileField(): void
+    {
+        $form = $this->makeForm(['template' => '[file upload]']);
+        $html = $this->renderer->render($form, '/submit', 'tok');
+
+        $this->assertStringContainsString('enctype="multipart/form-data"', $html);
+    }
+
+    public function testEscapesActionUrlSpecialChars(): void
+    {
+        $form = $this->makeForm(['template' => '[submit "Go"]']);
+        $html = $this->renderer->render($form, '/action?a=1&b=2', 'tok');
+
+        $this->assertStringContainsString('action="/action?a=1&amp;b=2"', $html);
+    }
+
+    public function testFormTagHasNovalidateAndDataPfId(): void
+    {
+        $form = $this->makeForm(['id_form' => 9, 'template' => '[submit "Go"]']);
+        $html = $this->renderer->render($form, '/submit', 'tok');
+
+        $this->assertStringContainsString('novalidate', $html);
+        $this->assertStringContainsString('data-pf-id="9"', $html);
+    }
+
+    public function testRendersRadioGroup(): void
+    {
+        $form = $this->makeForm(['template' => '[radio* pref "Email" "Phone"]']);
+        $html = $this->renderer->render($form, '/submit', 'tok');
+
+        $this->assertStringContainsString('type="radio"', $html);
+        $this->assertStringContainsString('name="pref"', $html);
+        $this->assertStringContainsString('value="Email"', $html);
+        $this->assertStringContainsString('value="Phone"', $html);
+    }
+
+    public function testRendersCheckbox(): void
+    {
+        $form = $this->makeForm(['template' => '[checkbox agree "I agree"]']);
+        $html = $this->renderer->render($form, '/submit', 'tok');
+
+        $this->assertStringContainsString('type="checkbox"', $html);
+        $this->assertStringContainsString('name="agree"', $html);
+    }
+
+    public function testRendersFileInput(): void
+    {
+        $form = $this->makeForm(['template' => '[file* attachment accept:.pdf]']);
+        $html = $this->renderer->render($form, '/submit', 'tok');
+
+        $this->assertStringContainsString('type="file"', $html);
+        $this->assertStringContainsString('name="attachment"', $html);
+        $this->assertStringContainsString('accept=".pdf"', $html);
+    }
 }

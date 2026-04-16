@@ -30,9 +30,11 @@ class FormRenderer
         ) ?? $template;
 
         $css           = $this->renderCss((string) ($form['custom_css'] ?? ''), $formId);
-        $condJson      = json_encode($conditionRules, JSON_UNESCAPED_UNICODE);
+        $condJson      = json_encode($conditionRules, JSON_UNESCAPED_UNICODE) ?: '[]';
         $enctype       = str_contains($template, '[file') ? ' enctype="multipart/form-data"' : '';
         $captchaScript = $this->renderCaptchaScript((string) ($form['captcha_provider'] ?? 'none'), $formId);
+        $safeActionUrl = htmlspecialchars($actionUrl, ENT_QUOTES, 'UTF-8');
+        $safeToken     = htmlspecialchars($token,     ENT_QUOTES, 'UTF-8');
 
         return <<<HTML
 <div id="prestaform-{$formId}" class="prestaform-wrapper">
@@ -42,9 +44,9 @@ window.pfConditions = window.pfConditions || {};
 window.pfConditions[{$formId}] = {$condJson};
 </script>
 {$captchaScript}
-<form action="{$actionUrl}" method="post"{$enctype} data-pf-id="{$formId}" novalidate>
+<form action="{$safeActionUrl}" method="post"{$enctype} data-pf-id="{$formId}" novalidate>
 <input type="hidden" name="pf_form_id" value="{$formId}">
-<input type="hidden" name="token" value="{$token}">
+<input type="hidden" name="token" value="{$safeToken}">
 {$body}
 </form>
 </div>
@@ -85,7 +87,9 @@ HTML;
     private function renderField(array $field): string
     {
         $wrap = fn(string $html): string =>
-            "<div class=\"pf-field pf-field-{$field['type']}\" data-pf-name=\"{$field['name']}\">{$html}</div>";
+            '<div class="pf-field pf-field-' . htmlspecialchars($field['type'])
+            . '" data-pf-name="' . htmlspecialchars($field['name']) . '">'
+            . $html . '</div>';
 
         return match ($field['type']) {
             'text', 'email', 'tel', 'number', 'date', 'hidden' => $wrap($this->renderInput($field)),
