@@ -5,7 +5,16 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-require_once __DIR__ . '/vendor/autoload.php';
+// PSR-4 autoloader for PrestaForm\* — no composer vendor needed in production
+spl_autoload_register(static function (string $class): void {
+    if (strncmp($class, 'PrestaForm\\', 11) !== 0) {
+        return;
+    }
+    $file = __DIR__ . '/src/' . str_replace('\\', '/', substr($class, 11)) . '.php';
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
 
 class Prestaform extends Module
 {
