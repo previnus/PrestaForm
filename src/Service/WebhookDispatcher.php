@@ -7,13 +7,14 @@ use PrestaForm\Repository\WebhookRepository;
 
 class WebhookDispatcher
 {
+    /** @var callable */
+    private $httpCallback;
+
     public function __construct(
         private readonly WebhookRepository $repo = new WebhookRepository(),
-        private ?callable $httpCallback = null
+        ?callable $httpCallback = null
     ) {
-        if ($this->httpCallback === null) {
-            $this->httpCallback = $this->curlRequest(...);
-        }
+        $this->httpCallback = $httpCallback ?? $this->curlRequest(...);
     }
 
     /**
