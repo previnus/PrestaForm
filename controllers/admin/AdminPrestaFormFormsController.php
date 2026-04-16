@@ -18,6 +18,9 @@ class AdminPrestaFormFormsController extends ModuleAdminController
     {
         $this->addJS(_MODULE_DIR_ . 'prestaform/views/js/admin/form-builder.js');
         $this->addCSS(_MODULE_DIR_ . 'prestaform/views/css/admin.css');
+        \Media::addJsDef([
+            'pfAdminUrl' => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+        ]);
         parent::initContent();
     }
 

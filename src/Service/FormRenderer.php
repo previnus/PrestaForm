@@ -32,12 +32,13 @@ class FormRenderer
         $css           = $this->renderCss((string) ($form['custom_css'] ?? ''), $formId);
         $condJson      = json_encode($conditionRules, JSON_UNESCAPED_UNICODE) ?: '[]';
         $enctype       = str_contains($template, '[file') ? ' enctype="multipart/form-data"' : '';
-        $captchaScript = $this->renderCaptchaScript((string) ($form['captcha_provider'] ?? 'none'), $formId);
-        $safeActionUrl = htmlspecialchars($actionUrl, ENT_QUOTES, 'UTF-8');
-        $safeToken     = htmlspecialchars($token,     ENT_QUOTES, 'UTF-8');
+        $captchaScript  = $this->renderCaptchaScript((string) ($form['captcha_provider'] ?? 'none'), $formId);
+        $safeActionUrl  = htmlspecialchars($actionUrl, ENT_QUOTES, 'UTF-8');
+        $safeToken      = htmlspecialchars($token,     ENT_QUOTES, 'UTF-8');
+        $safeSuccessMsg = htmlspecialchars((string) ($form['success_message'] ?? ''), ENT_QUOTES, 'UTF-8');
 
         return <<<HTML
-<div id="prestaform-{$formId}" class="prestaform-wrapper">
+<div id="prestaform-{$formId}" class="prestaform-wrapper" data-success-message="{$safeSuccessMsg}">
 {$css}
 <script>
 window.pfConditions = window.pfConditions || {};
