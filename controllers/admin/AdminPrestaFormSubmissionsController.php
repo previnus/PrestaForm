@@ -109,6 +109,10 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
             }
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         header('Content-Type: text/csv; charset=UTF-8');
         header('Content-Disposition: attachment; filename="prestaform-submissions-' . date('Y-m-d') . '.csv"');
 
