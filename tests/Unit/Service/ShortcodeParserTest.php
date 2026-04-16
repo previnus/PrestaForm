@@ -121,4 +121,10 @@ TPL;
         $this->assertSame('.pdf,.docx', $fields[0]['params']['accept']);
         $this->assertSame('5mb',        $fields[0]['params']['limit']);
     }
+
+    public function testParseTagDirectlyReturnsNullForEmpty(): void
+    {
+        $this->assertNull($this->parser->parseTag(''));
+        $this->assertNull($this->parser->parseTag('   '));
+    }
 }

@@ -108,13 +108,14 @@ class ShortcodeParser
     /** @return list<string> */
     private function tokenize(string $str): array
     {
-        preg_match_all('/"[^"]*"|\'[^\']*\'|[^\s]+/', $str, $matches);
+        preg_match_all('/"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|[^\s]+/', $str, $matches);
         return $matches[0];
     }
 
     private function isQuoted(string $token): bool
     {
-        return (str_starts_with($token, '"') && str_ends_with($token, '"'))
-            || (str_starts_with($token, "'") && str_ends_with($token, "'"));
+        return strlen($token) >= 2
+            && ((str_starts_with($token, '"') && str_ends_with($token, '"'))
+                || (str_starts_with($token, "'") && str_ends_with($token, "'")));
     }
 }
