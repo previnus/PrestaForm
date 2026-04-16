@@ -39,7 +39,7 @@ class EmailRouter
         $addresses = $this->decodeAddresses($route['notify_addresses']);
 
         // Apply conditional routing rules
-        $rules = $route['routing_rules'];
+        $rules = $route['routing_rules'] ?? null;
         if (is_string($rules)) {
             $rules = json_decode($rules, true) ?? [];
         }
@@ -127,7 +127,7 @@ class EmailRouter
 
         $subject = $this->renderTemplate((string) ($route['subject'] ?? ''), $submission, $form);
         $body    = $this->renderTemplate((string) ($route['body']    ?? ''), $submission, $form);
-        $replyTo = $route['reply_to'] ?: \Configuration::get('PS_SHOP_EMAIL');
+        $replyTo = ($route['reply_to'] ?? '') ?: \Configuration::get('PS_SHOP_EMAIL');
 
         \Mail::Send(
             (int) \Configuration::get('PS_LANG_DEFAULT'),
