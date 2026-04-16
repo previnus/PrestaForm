@@ -40,9 +40,6 @@ class Prestaform extends Module
             && $this->installDb()
             && $this->installTabs()
             && $this->registerHook('displayHeader')
-            && $this->registerHook('displayHome')
-            && $this->registerHook('displayCMSPageContent')
-            && $this->registerHook('displayFooterBefore')
             && $this->registerHook('actionCronJob');
     }
 
