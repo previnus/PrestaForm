@@ -1,2 +1,4 @@
-vendor/
-.superpowers/
+/vendor/
+/uploads/
+/.superpowers/
+*.DS_Store
