@@ -1,0 +1,32 @@
+/* PrestaForm — admin styles */
+
+#pf-tag-panel .list-group-item {
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#pf-tag-panel .list-group-item:hover {
+  background: #e8f4f8;
+  color: #25b9d7;
+}
+
+#pf-template {
+  min-height: 300px;
+  line-height: 1.6;
+}
+
+.pf-cg {
+  margin-bottom: 12px;
+}
+
+.pf-rule {
+  background: #f9f9f9;
+  padding: 6px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.pf-webhook-item .panel-heading {
+  background: #f9f9f9;
+}
