@@ -205,9 +205,16 @@ class SubmissionService
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
+        // Prevent direct execution of uploaded files
+        if (!file_exists($uploadDir . '.htaccess')) {
+            file_put_contents($uploadDir . '.htaccess', "Options -ExecCGI -Indexes\n<FilesMatch \"\\.php$\">\n    deny from all\n</FilesMatch>\n");
+        }
+        if (!file_exists($uploadDir . 'index.php')) {
+            file_put_contents($uploadDir . 'index.php', "<?php\nheader('Expires: Mon, 26 Jul 1997 05:00:00 GMT');\nheader('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');\nheader('Cache-Control: no-store, no-cache, must-revalidate');\nheader('Cache-Control: post-check=0, pre-check=0', false);\nheader('Pragma: no-cache');\nheader('Location: ../../../');\nexit;\n");
+        }
 
-        $ext      = pathinfo($files[$name]['name'], PATHINFO_EXTENSION);
-        $filename = uniqid('pf_', true) . '.' . $ext;
+        $ext      = preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($files[$name]['name'], PATHINFO_EXTENSION));
+        $filename = uniqid('pf_', true) . ($ext ? '.' . $ext : '');
         move_uploaded_file($files[$name]['tmp_name'], $uploadDir . $filename);
 
         return $filename;

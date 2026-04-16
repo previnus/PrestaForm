@@ -11,11 +11,6 @@ class PrestaformSubmitModuleFrontController extends ModuleFrontController
 
     public function postProcess(): void
     {
-        if (!$this->isTokenValid()) {
-            $this->outputJson(['success' => false, 'errors' => ['_form' => 'Invalid token.']]);
-            return;
-        }
-
         $service = new \PrestaForm\Service\SubmissionService();
         $result  = $service->handle(
             \Tools::getAllValues(),
@@ -27,11 +22,14 @@ class PrestaformSubmitModuleFrontController extends ModuleFrontController
         // Redirect to current page with success query param.
         if ($this->isMultipart()) {
             $redirectUrl = \Tools::getReferer();
-            if ($result['success']) {
-                \Tools::redirectLink($redirectUrl . (str_contains($redirectUrl, '?') ? '&' : '?') . 'pf_success=1');
-            } else {
-                \Tools::redirectLink($redirectUrl . (str_contains($redirectUrl, '?') ? '&' : '?') . 'pf_error=1');
+            // Validate Referer belongs to this shop to prevent open redirect
+            $refererHost = parse_url($redirectUrl, PHP_URL_HOST) ?? '';
+            $shopHost    = $_SERVER['HTTP_HOST'] ?? '';
+            if ($refererHost !== $shopHost) {
+                $redirectUrl = \Context::getContext()->link->getBaseLink();
             }
+            $sep = str_contains($redirectUrl, '?') ? '&' : '?';
+            \Tools::redirectLink($redirectUrl . $sep . ($result['success'] ? 'pf_success=1' : 'pf_error=1'));
             return;
         }
 
@@ -46,7 +44,9 @@ class PrestaformSubmitModuleFrontController extends ModuleFrontController
 
     private function outputJson(array $data): void
     {
-        ob_end_clean();
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
         header('Content-Type: application/json; charset=UTF-8');
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
         exit;

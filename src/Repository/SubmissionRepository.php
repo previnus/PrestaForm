@@ -33,6 +33,9 @@ class SubmissionRepository
         if (!empty($filters['date_to'])) {
             $where[] = 's.date_add <= \'' . pSQL($filters['date_to']) . ' 23:59:59\'';
         }
+        if (!empty($filters['search'])) {
+            $where[] = 's.data LIKE \'%' . pSQL($filters['search']) . '%\'';
+        }
 
         $whereStr = implode(' AND ', $where);
 
@@ -64,6 +67,9 @@ class SubmissionRepository
         if (!empty($filters['date_to'])) {
             $where[] = 'date_add <= \'' . pSQL($filters['date_to']) . ' 23:59:59\'';
         }
+        if (!empty($filters['search'])) {
+            $where[] = 'data LIKE \'%' . pSQL($filters['search']) . '%\'';
+        }
         return (int) \Db::getInstance()->getValue(
             'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'pf_submissions` WHERE ' . implode(' AND ', $where)
         );
@@ -74,7 +80,7 @@ class SubmissionRepository
     {
         \Db::getInstance()->insert('pf_submissions', [
             'id_form'    => $formId,
-            'data'       => pSQL(json_encode($data, JSON_UNESCAPED_UNICODE)),
+            'data'       => pSQL(json_encode($data, JSON_UNESCAPED_UNICODE) ?: '{}'),
             'ip_address' => pSQL($ip),
             'date_add'   => date('Y-m-d H:i:s'),
         ]);

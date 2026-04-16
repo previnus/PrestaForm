@@ -36,7 +36,7 @@ class ConditionRepository
                 'target_field' => pSQL((string) ($group['target_field'] ?? '')),
                 'action'       => pSQL((string) ($group['action']       ?? 'show')),
                 'logic'        => pSQL((string) ($group['logic']        ?? 'AND')),
-                'rules'        => pSQL(json_encode($group['rules'] ?? [], JSON_UNESCAPED_UNICODE)),
+                'rules'        => pSQL(json_encode($group['rules'] ?? [], JSON_UNESCAPED_UNICODE) ?: '[]'),
             ]);
         }
     }

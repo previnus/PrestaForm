@@ -81,7 +81,7 @@ class WebhookDispatcher
             (string) $webhook['url'],
             (string) ($webhook['method'] ?? 'POST'),
             $headers,
-            json_encode($payload, JSON_UNESCAPED_UNICODE),
+            json_encode($payload, JSON_UNESCAPED_UNICODE) ?: '{}',
             $timeout
         );
 

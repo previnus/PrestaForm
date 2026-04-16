@@ -41,9 +41,9 @@ class WebhookRepository
             'name'            => pSQL((string) ($data['name']    ?? '')),
             'url'             => pSQL((string) ($data['url']     ?? '')),
             'method'          => pSQL((string) ($data['method']  ?? 'POST')),
-            'headers'         => pSQL(json_encode($data['headers'] ?? [], JSON_UNESCAPED_UNICODE)),
+            'headers'         => pSQL(json_encode($data['headers'] ?? [], JSON_UNESCAPED_UNICODE) ?: '[]'),
             'field_map'       => isset($data['field_map'])
-                ? pSQL(json_encode($data['field_map'], JSON_UNESCAPED_UNICODE))
+                ? pSQL(json_encode($data['field_map'], JSON_UNESCAPED_UNICODE) ?: '[]')
                 : null,
             'retry_count'     => (int) ($data['retry_count']     ?? 3),
             'timeout_seconds' => (int) ($data['timeout_seconds'] ?? 10),

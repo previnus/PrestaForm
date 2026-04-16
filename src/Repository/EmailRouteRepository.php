@@ -38,12 +38,12 @@ class EmailRouteRepository
                 'id_form'          => $formId,
                 'type'             => pSQL((string) ($route['type']    ?? 'admin')),
                 'enabled'          => (int) ($route['enabled']         ?? 1),
-                'notify_addresses' => pSQL(json_encode($route['notify_addresses'] ?? [], JSON_UNESCAPED_UNICODE)),
+                'notify_addresses' => pSQL(json_encode($route['notify_addresses'] ?? [], JSON_UNESCAPED_UNICODE) ?: '[]'),
                 'reply_to'         => isset($route['reply_to']) ? pSQL($route['reply_to']) : null,
                 'subject'          => pSQL((string) ($route['subject'] ?? '')),
                 'body'             => pSQL((string) ($route['body']    ?? '')),
                 'routing_rules'    => !empty($route['routing_rules'])
-                    ? pSQL(json_encode($route['routing_rules'], JSON_UNESCAPED_UNICODE))
+                    ? pSQL(json_encode($route['routing_rules'], JSON_UNESCAPED_UNICODE) ?: '[]')
                     : null,
             ]);
         }
