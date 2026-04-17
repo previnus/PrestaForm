@@ -21,18 +21,39 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         \Media::addJsDef([
             'pfAdminUrl' => $this->context->link->getAdminLink('AdminPrestaFormForms'),
         ]);
+
+        $action = Tools::getValue('action');
+
+        // Show banners when redirected back after a successful save or delete
+        if (Tools::getValue('pf_saved')) {
+            $this->confirmations[] = 'Saved successfully.';
+        }
+        if (Tools::getValue('pf_deleted')) {
+            $this->confirmations[] = 'Form deleted.';
+        }
+
+        if ($action === 'edit') {
+            $this->content = $this->buildFormHtml();
+        } else {
+            $this->content = $this->buildListHtml();
+        }
+
         parent::initContent();
     }
 
-    public function renderList(): string
+    private function buildListHtml(): string
     {
         $repo  = new \PrestaForm\Repository\FormRepository();
         $forms = $repo->findAll();
-        $this->context->smarty->assign(['forms' => $forms, 'base_url' => $this->context->link->getAdminLink('AdminPrestaFormForms')]);
+        $this->context->smarty->assign([
+            'forms'       => $forms,
+            'forms_count' => count($forms),
+            'base_url'    => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+        ]);
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/list.tpl');
     }
 
-    public function renderForm(): string
+    private function buildFormHtml(): string
     {
         $repo   = new \PrestaForm\Repository\FormRepository();
         $wRepo  = new \PrestaForm\Repository\WebhookRepository();
@@ -43,17 +64,73 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         $parser = new \PrestaForm\Service\ShortcodeParser();
         $fields = $form ? $parser->parse((string) $form['template']) : [];
 
-        $this->context->smarty->assign([
-            'form'        => $form ?? $this->emptyForm(),
-            'fields'      => $fields,
-            'webhooks'    => $id ? $wRepo->findByForm($id) : [],
-            'conditions'  => $id ? $cRepo->findByForm($id) : [],
-            'email_routes'=> $id ? $eRepo->findByForm($id) : [
-                ['type' => 'admin',        'enabled' => 1, 'notify_addresses' => [], 'reply_to' => null, 'subject' => 'New submission: [_form_title]', 'body' => '', 'routing_rules' => []],
-                ['type' => 'confirmation', 'enabled' => 0, 'notify_addresses' => [], 'reply_to' => null, 'subject' => 'We received your message', 'body' => '', 'routing_rules' => []],
+        $defaultRoutes = [
+            [
+                'type'               => 'admin',
+                'enabled'            => 1,
+                'notify_addresses'   => [],
+                'from_address'       => '[_shop_name] <[_shop_email]>',
+                'additional_headers' => '',
+                'reply_to'           => null,
+                'subject'            => '[_form_title] — New Submission',
+                'body'               => '[_all_fields]',
+                'routing_rules'      => [],
             ],
-            'base_url'    => $this->context->link->getAdminLink('AdminPrestaFormForms'),
-            'captcha_providers' => ['none' => 'None', 'recaptcha_v2' => 'reCAPTCHA v2', 'recaptcha_v3' => 'reCAPTCHA v3', 'turnstile' => 'Cloudflare Turnstile'],
+            [
+                'type'               => 'confirmation',
+                'enabled'            => 0,
+                'notify_addresses'   => [],
+                'from_address'       => '[_shop_name] <[_shop_email]>',
+                'additional_headers' => 'Reply-To: [_shop_email]',
+                'reply_to'           => null,
+                'subject'            => 'Thank you for contacting us',
+                'body'               => "Dear visitor,\n\nThank you for your message. We'll be in touch shortly.\n\nBest regards,\n[_shop_name]",
+                'routing_rules'      => [],
+            ],
+        ];
+        $emailRoutes = $id ? $eRepo->findByForm($id) : $defaultRoutes;
+
+        // Pre-convert notify_addresses arrays to comma-separated strings (new CF7-style
+        // To field) so Smarty never needs |@implode (avoids PS9 strict-type crash).
+        foreach ($emailRoutes as &$route) {
+            if (is_array($route['notify_addresses'])) {
+                $route['notify_addresses'] = implode(', ', $route['notify_addresses']);
+            }
+            // Ensure new columns exist even when loading old DB rows that predate migration
+            $route['from_address']       ??= '';
+            $route['additional_headers'] ??= '';
+        }
+        unset($route);
+
+        $conditions = $id ? $cRepo->findByForm($id) : [];
+
+        // Pre-serialise current DB state into the hidden JSON fields so that an
+        // accidental empty-string submit (e.g. JS not running) cannot wipe data.
+        $mailRoutesInitJson = json_encode(
+            array_map(static function (array $r): array {
+                // Restore notify_addresses to array before serialising for JS
+                if (is_string($r['notify_addresses'])) {
+                    $r['notify_addresses'] = array_filter(
+                        array_map('trim', explode(',', $r['notify_addresses']))
+                    );
+                }
+                return $r;
+            }, $emailRoutes),
+            JSON_UNESCAPED_UNICODE
+        );
+        $conditionsInitJson = json_encode($conditions, JSON_UNESCAPED_UNICODE);
+
+        $this->context->smarty->assign([
+            'form'                   => $form ?? $this->emptyForm(),
+            'fields'                 => $fields,
+            'webhooks'               => $id ? $wRepo->findByForm($id) : [],
+            'conditions'             => $conditions,
+            'email_routes'           => $emailRoutes,
+            'mail_routes_init_json'  => $mailRoutesInitJson,
+            'conditions_init_json'   => $conditionsInitJson,
+            'base_url'               => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+            'captcha_providers'      => ['none' => 'None', 'recaptcha_v2' => 'reCAPTCHA v2', 'recaptcha_v3' => 'reCAPTCHA v3', 'turnstile' => 'Cloudflare Turnstile'],
+            'pf_tpl_dir'             => _PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/',
         ]);
 
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/edit.tpl');
@@ -63,40 +140,63 @@ class AdminPrestaFormFormsController extends ModuleAdminController
     {
         $action = Tools::getValue('action');
 
+        // NOTE: method names deliberately do NOT follow the PS `process{Action}` convention.
+        // AdminController::postProcess() auto-dispatches to public `process{Action}()` methods,
+        // which would cause a second save/delete on every request.  Private `handle*` methods
+        // are invisible to that mechanism.
         if ($action === 'save') {
-            $this->processSave();
+            $this->handleSave();
         } elseif ($action === 'delete') {
-            $this->processDelete();
+            $this->handleDelete();
         } elseif ($action === 'save_webhooks') {
-            $this->processSaveWebhooks();
+            $this->handleSaveWebhooks();
         } elseif ($action === 'save_conditions') {
-            $this->processSaveConditions();
+            $this->handleSaveConditions();
         } elseif ($action === 'save_mail') {
-            $this->processSaveMail();
+            $this->handleSaveMail();
         } elseif ($action === 'test_webhook') {
-            $this->processTestWebhook();
+            $this->handleTestWebhook();
         } elseif ($action === 'delete_webhook') {
-            $this->processDeleteWebhook();
+            $this->handleDeleteWebhook();
         }
 
         parent::postProcess();
     }
 
-    private function processSave(): void
+    private function handleSave(): void
     {
         $repo = new \PrestaForm\Repository\FormRepository();
-        $slug = Tools::getValue('slug');
+        // Tools::getValue returns false when key is absent — cast to string to
+        // satisfy FormRepository::slugExists(string $slug) with strict_types=1
+        $slug = (string) (Tools::getValue('slug') ?: '');
         $id   = (int) Tools::getValue('id_form');
 
-        if ($repo->slugExists($slug, $id)) {
-            $this->errors[] = 'Slug is already in use. Please choose another.';
+        // Auto-generate slug from name when left blank
+        if ($slug === '') {
+            $name = (string) (Tools::getValue('name') ?: '');
+            $slug = $this->slugify($name);
+        }
+
+        // Ensure uniqueness — append -N suffix if needed
+        if ($slug !== '' && $repo->slugExists($slug, $id)) {
+            $base    = $slug;
+            $counter = 2;
+            while ($repo->slugExists($base . '-' . $counter, $id)) {
+                $counter++;
+            }
+            $slug = $base . '-' . $counter;
+        }
+
+        $name = (string) (Tools::getValue('name') ?: '');
+        if (trim($name) === '') {
+            $this->errors[] = 'Form name is required.';
             return;
         }
 
         $validStatuses   = ['draft', 'active'];
         $validCaptchas   = ['none', 'recaptcha_v2', 'recaptcha_v3', 'turnstile'];
-        $status          = Tools::getValue('status');
-        $captchaProvider = Tools::getValue('captcha_provider');
+        $status          = (string) (Tools::getValue('status') ?: 'draft');
+        $captchaProvider = (string) (Tools::getValue('captcha_provider') ?: 'none');
 
         if (!in_array($status, $validStatuses, true)) {
             $this->errors[] = 'Invalid status value.';
@@ -111,61 +211,113 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         if ($retentionRaw === 'custom') {
             $retentionRaw = Tools::getValue('retention_days_custom');
         }
-        $repo->save([
+        $savedId = $repo->save([
             'id_form'          => $id ?: null,
-            'name'             => Tools::getValue('name'),
+            'name'             => $name,
             'slug'             => $slug,
-            'template'         => Tools::getValue('template'),
-            'custom_css'       => Tools::getValue('custom_css'),
-            'success_message'  => Tools::getValue('success_message'),
+            'template'         => (string) (Tools::getValue('template') ?: ''),
+            'custom_css'       => (string) (Tools::getValue('custom_css') ?: ''),
+            'success_message'  => (string) (Tools::getValue('success_message') ?: ''),
             'status'           => $status,
             'captcha_provider' => $captchaProvider,
-            'retention_days'   => $retentionRaw !== '' ? (int) $retentionRaw : null,
+            'retention_days'   => ($retentionRaw !== '' && $retentionRaw !== false) ? (int) $retentionRaw : null,
         ]);
 
-        $this->confirmations[] = 'Form saved.';
+        // Redirect back to the edit page (PRG pattern — prevents double-submit on refresh,
+        // and keeps user in context instead of landing on the forms list).
+        // pf_saved=1 triggers the success banner in initContent().
+        \Tools::redirectAdmin(
+            $this->context->link->getAdminLink('AdminPrestaFormForms') .
+            '&action=edit&id_form=' . $savedId . '&pf_saved=1'
+        );
     }
 
-    private function processDelete(): void
+    private function handleDelete(): void
     {
-        $id   = (int) Tools::getValue('id_form');
-        $repo = new \PrestaForm\Repository\FormRepository();
-        $repo->delete($id);
-        $this->confirmations[] = 'Form deleted.';
+        // Reject GET requests — delete must come from a POST form to prevent
+        // CSRF via link/image and accidental deletion from browser pre-fetch.
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return;
+        }
+
+        $id = (int) Tools::getValue('id_form');
+        if (!$id) {
+            return;
+        }
+
+        // Cascade-delete all child records before removing the form
+        (new \PrestaForm\Repository\ConditionRepository())->deleteByForm($id);
+        (new \PrestaForm\Repository\EmailRouteRepository())->deleteByForm($id);
+        (new \PrestaForm\Repository\WebhookRepository())->deleteByForm($id);
+        (new \PrestaForm\Repository\SubmissionRepository())->deleteByForm($id);
+        (new \PrestaForm\Repository\FormRepository())->delete($id);
+
+        // PRG: redirect to list with a visible deleted banner
+        \Tools::redirectAdmin(
+            $this->context->link->getAdminLink('AdminPrestaFormForms') . '&pf_deleted=1'
+        );
     }
 
-    private function processSaveWebhooks(): void
+    private function handleSaveWebhooks(): void
     {
-        $id       = (int) Tools::getValue('id_form');
-        $repo     = new \PrestaForm\Repository\WebhookRepository();
-        $webhooks = json_decode(Tools::getValue('webhooks_json', '[]'), true) ?? [];
+        $id      = (int) Tools::getValue('id_form');
+        $raw     = Tools::getValue('webhooks_json', '[]');
+        $decoded = json_decode($raw, true);
 
-        foreach ($webhooks as $w) {
+        // Reject malformed JSON — avoids silently saving nothing
+        if (!is_array($decoded)) {
+            $this->errors[] = 'Invalid webhook data.';
+            return;
+        }
+
+        $repo = new \PrestaForm\Repository\WebhookRepository();
+        foreach ($decoded as $w) {
             $w['id_form'] = $id;
             $repo->save($w);
         }
-        $this->confirmations[] = 'Webhooks saved.';
+        \Tools::redirectAdmin(
+            $this->context->link->getAdminLink('AdminPrestaFormForms') .
+            '&action=edit&id_form=' . $id . '&pf_saved=1'
+        );
     }
 
-    private function processSaveConditions(): void
+    private function handleSaveConditions(): void
     {
         $id      = (int) Tools::getValue('id_form');
-        $repo    = new \PrestaForm\Repository\ConditionRepository();
-        $groups  = json_decode(Tools::getValue('conditions_json', '[]'), true) ?? [];
-        $repo->saveForForm($id, $groups);
-        $this->confirmations[] = 'Conditions saved.';
+        $raw     = Tools::getValue('conditions_json', '[]');
+        $decoded = json_decode($raw, true);
+
+        if (!is_array($decoded)) {
+            $this->errors[] = 'Invalid conditions data.';
+            return;
+        }
+
+        (new \PrestaForm\Repository\ConditionRepository())->saveForForm($id, $decoded);
+        \Tools::redirectAdmin(
+            $this->context->link->getAdminLink('AdminPrestaFormForms') .
+            '&action=edit&id_form=' . $id . '&pf_saved=1'
+        );
     }
 
-    private function processSaveMail(): void
+    private function handleSaveMail(): void
     {
-        $id     = (int) Tools::getValue('id_form');
-        $repo   = new \PrestaForm\Repository\EmailRouteRepository();
-        $routes = json_decode(Tools::getValue('mail_routes_json', '[]'), true) ?? [];
-        $repo->saveForForm($id, $routes);
-        $this->confirmations[] = 'Mail settings saved.';
+        $id      = (int) Tools::getValue('id_form');
+        $raw     = Tools::getValue('mail_routes_json', '[]');
+        $decoded = json_decode($raw, true);
+
+        if (!is_array($decoded)) {
+            $this->errors[] = 'Invalid mail data.';
+            return;
+        }
+
+        (new \PrestaForm\Repository\EmailRouteRepository())->saveForForm($id, $decoded);
+        \Tools::redirectAdmin(
+            $this->context->link->getAdminLink('AdminPrestaFormForms') .
+            '&action=edit&id_form=' . $id . '&pf_saved=1'
+        );
     }
 
-    private function processTestWebhook(): void
+    private function handleTestWebhook(): void
     {
         $webhookId  = (int) Tools::getValue('id_webhook');
         $wRepo      = new \PrestaForm\Repository\WebhookRepository();
@@ -182,11 +334,15 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             return;
         }
 
+        // Clamp timeout: minimum 1 s, maximum 30 s — prevents a rogue DB value from
+        // hanging the admin request for an unbounded amount of time.
+        $timeout = max(1, min(30, (int) ($webhook['timeout_seconds'] ?? 10)));
+
         $testPayload = ['_test' => true, 'timestamp' => date('c')];
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => (int) $webhook['timeout_seconds'],
+            CURLOPT_TIMEOUT        => $timeout,
             CURLOPT_CUSTOMREQUEST  => $webhook['method'],
             CURLOPT_POSTFIELDS     => json_encode($testPayload),
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
@@ -198,7 +354,7 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         $this->outputJson(['success' => $status >= 200 && $status < 300, 'status' => $status, 'body' => mb_substr((string) $body, 0, 500)]);
     }
 
-    private function processDeleteWebhook(): void
+    private function handleDeleteWebhook(): void
     {
         $id   = (int) Tools::getValue('id_webhook');
         $repo = new \PrestaForm\Repository\WebhookRepository();
@@ -216,13 +372,35 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         exit;
     }
 
+    /**
+     * Convert a string to a URL-safe slug.
+     * e.g. "Contact Form" → "contact-form"
+     */
+    private function slugify(string $text): string
+    {
+        // Transliterate accented characters to ASCII equivalents
+        $text = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) ?: $text;
+        $text = strtolower($text);
+        $text = preg_replace('/[^a-z0-9]+/', '-', $text) ?? $text;
+        $text = trim($text, '-');
+        return $text ?: 'form';
+    }
+
     private function emptyForm(): array
     {
+        $sampleTemplate = implode("\n", [
+            '<p>[text* your-name placeholder "Your Name"]</p>',
+            '<p>[email* your-email placeholder "Email Address"]</p>',
+            '<p>[tel your-phone placeholder "Phone Number"]</p>',
+            '<p>[textarea* your-message rows "5" placeholder "Your message…"]</p>',
+            '<p>[submit "Send Message"]</p>',
+        ]);
+
         return [
             'id_form'          => 0,
             'name'             => '',
             'slug'             => '',
-            'template'         => '',
+            'template'         => $sampleTemplate,
             'custom_css'       => '',
             'success_message'  => 'Thank you! Your message has been sent.',
             'status'           => 'draft',

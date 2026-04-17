@@ -38,9 +38,45 @@ class Prestaform extends Module
     {
         return parent::install()
             && $this->installDb()
+            && $this->migrateSchema()
             && $this->installTabs()
             && $this->registerHook('displayHeader')
             && $this->registerHook('actionCronJob');
+    }
+
+    /**
+     * Safe schema migration — runs on install AND on getContent() so existing
+     * installations automatically gain new columns without a reinstall.
+     */
+    private function migrateSchema(): bool
+    {
+        $db  = Db::getInstance();
+        $tbl = _DB_PREFIX_ . 'pf_email_routes';
+
+        // Guard: table may not exist yet during fresh install (installDb handles creation)
+        $exists = $db->getValue('SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = \'' . pSQL($tbl) . '\'');
+        if (!$exists) {
+            return true;
+        }
+
+        $cols = array_column(
+            $db->executeS('SHOW COLUMNS FROM `' . $tbl . '`') ?: [],
+            'Field'
+        );
+
+        if (!in_array('from_address', $cols)) {
+            $db->execute('ALTER TABLE `' . $tbl . '`
+                ADD COLUMN `from_address` VARCHAR(500) NOT NULL DEFAULT \'\'
+                AFTER `reply_to`');
+        }
+        if (!in_array('additional_headers', $cols)) {
+            $db->execute('ALTER TABLE `' . $tbl . '`
+                ADD COLUMN `additional_headers` TEXT NOT NULL DEFAULT \'\'
+                AFTER `from_address`');
+        }
+
+        return true;
     }
 
     public function uninstall(): bool
@@ -69,6 +105,9 @@ class Prestaform extends Module
     private function uninstallDb(): bool
     {
         $sql = file_get_contents(__DIR__ . '/sql/uninstall.sql');
+        if ($sql === false) {
+            return true; // file missing — nothing to drop, treat as success
+        }
         $sql = str_replace('PREFIX_', _DB_PREFIX_, $sql);
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $query) {
             Db::getInstance()->execute($query);
@@ -140,6 +179,7 @@ class Prestaform extends Module
      */
     public function getContent(): void
     {
+        $this->migrateSchema(); // auto-upgrade existing installs
         Tools::redirectAdmin(
             $this->context->link->getAdminLink('AdminPrestaFormForms')
         );

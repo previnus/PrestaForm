@@ -59,15 +59,49 @@ HTML;
         if ($css === '') {
             return '';
         }
-        return "<style>\n#prestaform-{$formId} { {$css} }\n</style>";
+        // Strip any </style> sequences to prevent CSS context breakout / XSS
+        $safeCss = str_ireplace('</style', '<\\/style', $css);
+        return "<style>\n#prestaform-{$formId} { {$safeCss} }\n</style>";
     }
 
     private function renderCaptchaScript(string $provider, int $formId): string
     {
+        if ($provider === 'recaptcha_v3') {
+            $siteKey = (string) \Db::getInstance()->getValue(
+                'SELECT setting_value FROM `' . _DB_PREFIX_ . 'pf_settings`
+                 WHERE setting_key = \'recaptcha_v3_site_key\''
+            );
+            $safeSiteKey = htmlspecialchars($siteKey, ENT_QUOTES, 'UTF-8');
+            // Load v3 with the site key; inject a hidden input and auto-execute before submit
+            return <<<HTML
+<script src="https://www.google.com/recaptcha/api.js?render={$safeSiteKey}" async defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var wrapper = document.getElementById('prestaform-{$formId}');
+  if (!wrapper) return;
+  var form = wrapper.querySelector('form');
+  if (!form) return;
+  var hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = 'g-recaptcha-response';
+  form.appendChild(hidden);
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    grecaptcha.ready(function () {
+      grecaptcha.execute('{$safeSiteKey}', {action: 'submit'}).then(function (token) {
+        hidden.value = token;
+        form.removeEventListener('submit', arguments.callee);
+        form.requestSubmit ? form.requestSubmit() : form.submit();
+      });
+    });
+  }, true);
+});
+</script>
+HTML;
+        }
+
         return match ($provider) {
             'recaptcha_v2' =>
-                '<script src="https://www.google.com/recaptcha/api.js" async defer></script>',
-            'recaptcha_v3' =>
                 '<script src="https://www.google.com/recaptcha/api.js" async defer></script>',
             'turnstile' =>
                 '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>',

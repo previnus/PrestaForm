@@ -9,7 +9,10 @@ class SubmissionRepository
     public function findById(int $id): ?array
     {
         $row = \Db::getInstance()->getRow(
-            'SELECT * FROM `' . _DB_PREFIX_ . 'pf_submissions` WHERE `id_submission` = ' . (int) $id
+            'SELECT s.*, f.name AS form_name
+             FROM `' . _DB_PREFIX_ . 'pf_submissions` s
+             LEFT JOIN `' . _DB_PREFIX_ . 'pf_forms` f ON f.id_form = s.id_form
+             WHERE s.`id_submission` = ' . (int) $id
         );
         if (!$row) return null;
         $row['data'] = json_decode($row['data'], true) ?? [];
@@ -90,6 +93,11 @@ class SubmissionRepository
     public function delete(int $id): bool
     {
         return (bool) \Db::getInstance()->delete('pf_submissions', 'id_submission = ' . $id);
+    }
+
+    public function deleteByForm(int $formId): void
+    {
+        \Db::getInstance()->delete('pf_submissions', 'id_form = ' . (int) $formId);
     }
 
     public function deleteExpired(int $formId, int $retentionDays): int

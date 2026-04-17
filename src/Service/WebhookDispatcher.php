@@ -131,6 +131,32 @@ class WebhookDispatcher
     }
 
     /**
+     * Validate that a webhook URL is safe to call (no SSRF).
+     * Blocks private/loopback/link-local ranges and non-http(s) schemes.
+     */
+    private function isSafeUrl(string $url): bool
+    {
+        if (!preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+
+        $host = parse_url($url, PHP_URL_HOST);
+        if (!$host) {
+            return false;
+        }
+
+        // Resolve to IP; if resolution fails, block to be safe
+        $ip = gethostbyname($host);
+        if ($ip === $host && !filter_var($host, FILTER_VALIDATE_IP)) {
+            // Could not resolve or is not a bare IP
+            return false;
+        }
+
+        // Block private, loopback, link-local ranges
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+    }
+
+    /**
      * Real cURL HTTP request. Injected callback in tests.
      *
      * @param list<string> $headers
@@ -138,6 +164,10 @@ class WebhookDispatcher
      */
     private function curlRequest(string $url, string $method, array $headers, string $body, int $timeout): array
     {
+        if (!$this->isSafeUrl($url)) {
+            return [0, 'Blocked: URL failed SSRF safety check.'];
+        }
+
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,

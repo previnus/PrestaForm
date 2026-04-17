@@ -14,7 +14,18 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
         $this->meta_title = 'PrestaForm — Submissions';
     }
 
-    public function renderList(): string
+    public function initContent(): void
+    {
+        $action = Tools::getValue('action');
+        if ($action === 'view') {
+            $this->content = $this->buildViewHtml();
+        } else {
+            $this->content = $this->buildListHtml();
+        }
+        parent::initContent();
+    }
+
+    private function buildListHtml(): string
     {
         $subRepo  = new \PrestaForm\Repository\SubmissionRepository();
         $formRepo = new \PrestaForm\Repository\FormRepository();
@@ -29,6 +40,17 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
         $perPage     = 50;
         $total       = $subRepo->countAll(array_filter($filters));
         $submissions = $subRepo->findAll(array_filter($filters), $perPage, ($page - 1) * $perPage);
+
+        // Pre-convert any array field values to comma strings so templates
+        // never need |@implode (avoids PS9 SmartyLazyRegister PHP-8 crash)
+        foreach ($submissions as &$sub) {
+            foreach ($sub['data'] as $k => $v) {
+                if (is_array($v)) {
+                    $sub['data'][$k] = implode(', ', $v);
+                }
+            }
+        }
+        unset($sub);
 
         $this->context->smarty->assign([
             'submissions' => $submissions,
@@ -50,11 +72,6 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
     {
         $action = Tools::getValue('action');
 
-        if ($action === 'view') {
-            $this->renderView();
-            return;
-        }
-
         if ($action === 'delete') {
             $id   = (int) Tools::getValue('id_submission');
             $repo = new \PrestaForm\Repository\SubmissionRepository();
@@ -69,7 +86,7 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
         parent::postProcess();
     }
 
-    private function renderView(): void
+    private function buildViewHtml(): string
     {
         $id   = (int) Tools::getValue('id_submission');
         $repo = new \PrestaForm\Repository\SubmissionRepository();
@@ -77,7 +94,14 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
 
         if (!$sub) {
             $this->errors[] = 'Submission not found.';
-            return;
+            return $this->buildListHtml();
+        }
+
+        // Pre-convert array field values to strings (avoids |@implode in template)
+        foreach ($sub['data'] as $k => $v) {
+            if (is_array($v)) {
+                $sub['data'][$k] = implode(', ', $v);
+            }
         }
 
         $this->context->smarty->assign([
@@ -85,19 +109,21 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
             'base_url'   => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
         ]);
 
-        echo $this->context->smarty->fetch(
+        return $this->context->smarty->fetch(
             _PS_MODULE_DIR_ . 'prestaform/views/templates/admin/submissions/view.tpl'
         );
-        exit;
     }
 
     private function exportCsv(): void
     {
-        $formId = (int) Tools::getValue('id_form');
-        $repo   = new \PrestaForm\Repository\SubmissionRepository();
-        $rows   = $formId
-            ? $repo->findAllForExport($formId)
-            : $repo->findAll([], 10000, 0);
+        $formId  = (int) Tools::getValue('id_form') ?: null;
+        $filters = array_filter([
+            'id_form'   => $formId,
+            'date_from' => Tools::getValue('date_from') ?: null,
+            'date_to'   => Tools::getValue('date_to')   ?: null,
+        ]);
+        $repo = new \PrestaForm\Repository\SubmissionRepository();
+        $rows = $repo->findAll($filters, 10000, 0);
 
         // Collect all unique field keys across submissions
         $keys = ['id_submission', 'date_add', 'ip_address'];

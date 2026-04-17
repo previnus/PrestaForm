@@ -34,15 +34,30 @@ class EmailRouteRepository
         $this->deleteByForm($formId);
 
         foreach ($routes as $route) {
+            // Extract legacy reply_to from additional_headers when the field
+            // itself is not set (backward-compatibility path)
+            $replyTo = isset($route['reply_to']) ? (string) $route['reply_to'] : '';
+            if ($replyTo === '') {
+                $headers = (string) ($route['additional_headers'] ?? '');
+                foreach (explode("\n", $headers) as $line) {
+                    if (stripos(trim($line), 'Reply-To:') === 0) {
+                        $replyTo = trim(substr(trim($line), 9));
+                        break;
+                    }
+                }
+            }
+
             \Db::getInstance()->insert('pf_email_routes', [
-                'id_form'          => $formId,
-                'type'             => pSQL((string) ($route['type']    ?? 'admin')),
-                'enabled'          => (int) ($route['enabled']         ?? 1),
-                'notify_addresses' => pSQL(json_encode($route['notify_addresses'] ?? [], JSON_UNESCAPED_UNICODE) ?: '[]'),
-                'reply_to'         => isset($route['reply_to']) ? pSQL($route['reply_to']) : null,
-                'subject'          => pSQL((string) ($route['subject'] ?? '')),
-                'body'             => pSQL((string) ($route['body']    ?? '')),
-                'routing_rules'    => !empty($route['routing_rules'])
+                'id_form'            => $formId,
+                'type'               => pSQL((string) ($route['type']    ?? 'admin')),
+                'enabled'            => (int) ($route['enabled']         ?? 1),
+                'notify_addresses'   => pSQL(json_encode($route['notify_addresses'] ?? [], JSON_UNESCAPED_UNICODE) ?: '[]'),
+                'reply_to'           => $replyTo !== '' ? pSQL($replyTo) : null,
+                'from_address'       => pSQL((string) ($route['from_address']       ?? '')),
+                'additional_headers' => pSQL((string) ($route['additional_headers'] ?? '')),
+                'subject'            => pSQL((string) ($route['subject'] ?? '')),
+                'body'               => pSQL((string) ($route['body']    ?? '')),
+                'routing_rules'      => !empty($route['routing_rules'])
                     ? pSQL(json_encode($route['routing_rules'], JSON_UNESCAPED_UNICODE) ?: '[]')
                     : null,
             ]);

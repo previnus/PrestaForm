@@ -68,15 +68,17 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pf_conditions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pf_email_routes` (
-    `id_route`          INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
-    `id_form`           INT(11) UNSIGNED NOT NULL,
-    `type`              ENUM('admin','confirmation') NOT NULL,
-    `enabled`           TINYINT(1) NOT NULL DEFAULT 1,
-    `notify_addresses`  JSON NOT NULL,
-    `reply_to`          VARCHAR(255) NULL DEFAULT NULL,
-    `subject`           VARCHAR(500) NOT NULL DEFAULT '',
-    `body`              LONGTEXT NOT NULL,
-    `routing_rules`     JSON NULL DEFAULT NULL,
+    `id_route`           INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `id_form`            INT(11) UNSIGNED NOT NULL,
+    `type`               ENUM('admin','confirmation') NOT NULL,
+    `enabled`            TINYINT(1) NOT NULL DEFAULT 1,
+    `notify_addresses`   JSON NOT NULL,
+    `reply_to`           VARCHAR(255) NULL DEFAULT NULL,
+    `from_address`       VARCHAR(500) NOT NULL DEFAULT '',
+    `additional_headers` TEXT NOT NULL DEFAULT '',
+    `subject`            VARCHAR(500) NOT NULL DEFAULT '',
+    `body`               LONGTEXT NOT NULL,
+    `routing_rules`      JSON NULL DEFAULT NULL,
     PRIMARY KEY (`id_route`),
     KEY `id_form` (`id_form`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

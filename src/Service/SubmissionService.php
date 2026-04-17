@@ -37,9 +37,9 @@ class SubmissionService
             return ['success' => false, 'errors' => ['_form' => 'Form not found.']];
         }
 
-        // CSRF token check
-        if (empty($post['token']) || !\Tools::validate($post['token'], false)) {
-            return ['success' => false, 'errors' => ['_form' => 'Invalid token.']];
+        // CSRF token check — compare against the expected PS token, not just sanitise
+        if (empty($post['token']) || $post['token'] !== \Tools::getToken(false)) {
+            return ['success' => false, 'errors' => ['_form' => 'Invalid security token.']];
         }
 
         $fields      = $this->parser->parse((string) $form['template']);
@@ -99,13 +99,29 @@ class SubmissionService
         $submissionId = $this->subRepo->save($formId, $data, $ip);
 
         // Fire emails
-        $routes = $this->emailRepo->findByForm($formId);
+        $routes     = $this->emailRepo->findByForm($formId);
+        $hasAdmin   = false;
+
         foreach ($routes as $route) {
-            if ($route['type'] === 'admin' && (int) $route['enabled']) {
-                $this->emailRouter->dispatchAdmin($form, $route, $data);
+            if ($route['type'] === 'admin') {
+                $hasAdmin = true;
+                if ((int) ($route['enabled'] ?? 1)) {
+                    $this->emailRouter->dispatchAdmin($form, $route, $data);
+                }
             } elseif ($route['type'] === 'confirmation') {
                 $this->emailRouter->dispatchConfirmation($form, $route, $data);
             }
+        }
+
+        // If no admin route was ever saved for this form, send a fallback notification
+        // to the store contact email so submissions are never silently lost.
+        if (!$hasAdmin) {
+            $this->emailRouter->dispatchAdmin($form, [
+                'notify_addresses' => [],
+                'routing_rules'    => [],
+                'subject'          => 'New submission: [_form_title]',
+                'body'             => '[_all_fields]',
+            ], $data);
         }
 
         // Fire webhooks (non-blocking — failures are logged and retried via cron)
@@ -183,12 +199,28 @@ class SubmissionService
             }
         }
 
-        // Validate accepted extensions
+        // Validate accepted extensions against the server-side tmp_name (not the
+        // browser-supplied filename) using both extension and MIME type checks.
         if (!empty($field['params']['accept'])) {
-            $ext      = '.' . strtolower(pathinfo($files[$name]['name'], PATHINFO_EXTENSION));
             $accepted = array_map('trim', explode(',', strtolower($field['params']['accept'])));
-            if (!in_array($ext, $accepted, true)) {
+
+            // Extension check — use the client filename only for display; normalise to lowercase
+            $clientExt = '.' . strtolower(pathinfo($files[$name]['name'], PATHINFO_EXTENSION));
+            if (!in_array($clientExt, $accepted, true)) {
                 return 'File type not allowed. Accepted: ' . $field['params']['accept'];
+            }
+
+            // MIME type check — read from the actual uploaded bytes, not the browser header
+            if (function_exists('finfo_open')) {
+                $finfo    = finfo_open(FILEINFO_MIME_TYPE);
+                $mimeType = finfo_file($finfo, $files[$name]['tmp_name']) ?: '';
+                finfo_close($finfo);
+
+                // Build a safe allowlist: map accepted extensions to expected MIME types
+                $safeMimes = $this->mimeTypesForExtensions($accepted);
+                if (!empty($safeMimes) && !in_array(strtolower($mimeType), $safeMimes, true)) {
+                    return 'File type not allowed. Accepted: ' . $field['params']['accept'];
+                }
             }
         }
 
@@ -220,13 +252,52 @@ class SubmissionService
         return $filename;
     }
 
+    /**
+     * Map a list of accepted file extensions to their expected MIME types.
+     * Only well-known safe extensions are included; unknown ones are ignored
+     * (so custom extensions still pass as long as the ext check passes).
+     *
+     * @param  list<string> $extensions  e.g. ['.pdf', '.docx']
+     * @return list<string>              e.g. ['application/pdf', ...]
+     */
+    private function mimeTypesForExtensions(array $extensions): array
+    {
+        $map = [
+            '.jpg'  => 'image/jpeg',
+            '.jpeg' => 'image/jpeg',
+            '.png'  => 'image/png',
+            '.gif'  => 'image/gif',
+            '.webp' => 'image/webp',
+            '.svg'  => 'image/svg+xml',
+            '.pdf'  => 'application/pdf',
+            '.txt'  => 'text/plain',
+            '.csv'  => 'text/csv',
+            '.doc'  => 'application/msword',
+            '.docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls'  => 'application/vnd.ms-excel',
+            '.xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.zip'  => 'application/zip',
+            '.mp3'  => 'audio/mpeg',
+            '.mp4'  => 'video/mp4',
+        ];
+
+        $mimes = [];
+        foreach ($extensions as $ext) {
+            if (isset($map[$ext])) {
+                $mimes[] = $map[$ext];
+            }
+        }
+        return $mimes;
+    }
+
     private function parseSize(string $size): int
     {
         $size  = strtolower(trim($size));
         $units = ['kb' => 1024, 'mb' => 1024 * 1024, 'gb' => 1024 ** 3];
         foreach ($units as $unit => $multiplier) {
             if (str_ends_with($size, $unit)) {
-                return (int) $size * $multiplier;
+                // floatval() strips the unit suffix; cast to int AFTER multiplying
+                return (int) (floatval($size) * $multiplier);
             }
         }
         return (int) $size;

@@ -50,7 +50,7 @@ class WebhookRepository
             'active'          => (int) ($data['active']          ?? 1),
         ];
 
-        if (!empty($data['id_webhook'])) {
+        if (isset($data['id_webhook']) && (int) $data['id_webhook'] > 0) {
             $id = (int) $data['id_webhook'];
             \Db::getInstance()->update('pf_webhooks', $row, 'id_webhook = ' . $id);
             return $id;
@@ -64,6 +64,18 @@ class WebhookRepository
     {
         \Db::getInstance()->delete('pf_webhook_log', 'id_webhook = ' . $id);
         return (bool) \Db::getInstance()->delete('pf_webhooks', 'id_webhook = ' . $id);
+    }
+
+    public function deleteByForm(int $formId): void
+    {
+        // Delete logs for all webhooks belonging to this form
+        $webhookIds = \Db::getInstance()->executeS(
+            'SELECT id_webhook FROM `' . _DB_PREFIX_ . 'pf_webhooks` WHERE id_form = ' . (int) $formId
+        ) ?: [];
+        foreach ($webhookIds as $row) {
+            \Db::getInstance()->delete('pf_webhook_log', 'id_webhook = ' . (int) $row['id_webhook']);
+        }
+        \Db::getInstance()->delete('pf_webhooks', 'id_form = ' . (int) $formId);
     }
 
     public function logAttempt(int $webhookId, int $submissionId, int $attempt, ?int $status, string $body, bool $success): void

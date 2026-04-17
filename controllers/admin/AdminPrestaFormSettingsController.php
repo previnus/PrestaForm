@@ -14,6 +14,12 @@ class AdminPrestaFormSettingsController extends ModuleAdminController
         $this->meta_title = 'PrestaForm — Settings';
     }
 
+    public function initContent(): void
+    {
+        $this->content = $this->buildListHtml();
+        parent::initContent();
+    }
+
     private function getSettings(): array
     {
         $rows = \Db::getInstance()->executeS(
@@ -22,7 +28,7 @@ class AdminPrestaFormSettingsController extends ModuleAdminController
         return array_column($rows, 'setting_value', 'setting_key');
     }
 
-    public function renderList(): string
+    private function buildListHtml(): string
     {
         $this->context->smarty->assign(['settings' => $this->getSettings()]);
         return $this->context->smarty->fetch(
@@ -39,11 +45,15 @@ class AdminPrestaFormSettingsController extends ModuleAdminController
                 'turnstile_site_key',    'turnstile_secret_key',
                 'default_retention_days',
             ];
+            $db = \Db::getInstance();
             foreach ($keys as $key) {
-                \Db::getInstance()->update(
-                    'pf_settings',
-                    ['setting_value' => pSQL((string) Tools::getValue($key, ''))],
-                    'setting_key = \'' . pSQL($key) . '\''
+                $val = pSQL((string) Tools::getValue($key, ''));
+                // INSERT … ON DUPLICATE KEY UPDATE so rows that were never seeded
+                // by install.sql (e.g. after an upgrade) get created transparently.
+                $db->execute(
+                    'INSERT INTO `' . _DB_PREFIX_ . 'pf_settings` (setting_key, setting_value)
+                     VALUES (\'' . pSQL($key) . '\', \'' . $val . '\')
+                     ON DUPLICATE KEY UPDATE setting_value = \'' . $val . '\''
                 );
             }
             $this->confirmations[] = 'Settings saved.';

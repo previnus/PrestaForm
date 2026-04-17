@@ -1,14 +1,5 @@
-{extends file=$layout}
-{block name="content"}
-  <section id="main">
-    <div class="container">
-      <h1>{$form_title|escape}</h1>
-      {if $pf_success}
-        <div class="alert alert-success">{$success_message|escape}</div>
-      {elseif $pf_error}
-        <div class="alert alert-danger">There was a problem submitting the form. Please try again.</div>
-      {/if}
-      {$form_html nofilter}
-    </div>
-  </section>
-{/block}
+{*
+ * This template is reserved for a future standalone /prestaform/display front controller.
+ * Current rendering path: hookDisplayHeader (Smarty output filter) -> FormRenderer::render()
+ * which injects the form HTML directly into the page — this file is NOT currently used.
+ *}

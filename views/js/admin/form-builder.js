@@ -4,6 +4,7 @@
 (function () {
   'use strict';
 
+  // ── Tag parameter definitions ──────────────────────────────────────────────
   const TAG_PARAMS = {
     text:     [{ name: 'placeholder', label: 'Placeholder', type: 'text' }, { name: 'maxlength', label: 'Max length', type: 'number' }],
     email:    [{ name: 'placeholder', label: 'Placeholder', type: 'text' }],
@@ -70,10 +71,11 @@
     const parts = [type];
 
     const required = document.getElementById('pfTagRequired');
-    if (required && required.checked) parts[0] = type + '*';
+    if (required && required.checked) { parts[0] = type + '*'; }
 
-    const name = (document.getElementById('pfTagName') || {}).value;
-    if (name) parts.push(name);
+    const nameEl = document.getElementById('pfTagName');
+    const name = nameEl ? nameEl.value.trim() : '';
+    if (name) { parts.push(name); }
 
     document.querySelectorAll('.pf-tag-param').forEach(function (el) {
       if (el.value.trim()) {
@@ -82,13 +84,13 @@
     });
 
     const ib = document.getElementById('pfTagIncludeBlank');
-    if (ib && ib.checked) parts.push('include_blank');
+    if (ib && ib.checked) { parts.push('include_blank'); }
 
     const optEl = document.getElementById('pfTagOptions');
     if (optEl && optEl.value.trim()) {
       optEl.value.trim().split('\n').forEach(function (line) {
         line = line.trim();
-        if (line) parts.push('"' + line + '"');
+        if (line) { parts.push('"' + line + '"'); }
       });
     }
 
@@ -97,8 +99,8 @@
 
   function insertIntoTextarea(text) {
     const ta = document.getElementById('pf-template');
-    if (!ta) return;
-    const pos = ta.selectionStart;
+    if (!ta) { return; }
+    const pos    = ta.selectionStart;
     const before = ta.value.substring(0, pos);
     const after  = ta.value.substring(ta.selectionEnd);
     ta.value = before + text + after;
@@ -107,75 +109,98 @@
     ta.dispatchEvent(new Event('input'));
   }
 
-  document.querySelectorAll('.pf-tag-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      const type = btn.dataset.type;
-      document.getElementById('pfTagModalTitle').textContent = type;
-      document.getElementById('pfTagModalBody').innerHTML  = buildModalBody(type);
-      document.getElementById('pfTagPreview').textContent  = '[' + type + ']';
+  // ── Inline tag configurator — event delegation (robust, timing-independent) ─
+  //
+  // Instead of attaching listeners in a DOMContentLoaded callback (which can miss
+  // if the PS9 admin theme defers script execution), we register a single document-
+  // level delegated listener immediately when the IIFE runs.  The handler looks up
+  // panel elements at click-time so it never depends on DOM readiness at setup-time.
 
-      document.getElementById('pfTagModalBody').addEventListener('input', function () {
-        document.getElementById('pfTagPreview').textContent = buildTagString(type);
-      });
+  var pfTagCurrentType = '';
 
-      document.getElementById('pfInsertTag').onclick = function () {
-        insertIntoTextarea(buildTagString(type));
-        jQuery('#pfTagModal').modal('hide');
-      };
+  function pfTagShow(type) {
+    var panel  = document.getElementById('pf-tag-config');
+    var title  = document.getElementById('pf-tag-config-title');
+    var body   = document.getElementById('pf-tag-config-body');
+    var prev   = document.getElementById('pf-tag-preview');
+    if (!panel) { return; }
+    pfTagCurrentType = type;
+    if (title) { title.textContent = 'Configure [' + type + ']'; }
+    if (body)  { body.innerHTML    = buildModalBody(type); }
+    if (prev)  { prev.textContent  = '[' + type + ']'; }
+    panel.style.display = 'block';
+  }
 
-      jQuery('#pfTagModal').modal('show');
-    });
+  function pfTagHide() {
+    pfTagCurrentType = '';
+    var panel = document.getElementById('pf-tag-config');
+    if (panel) { panel.style.display = 'none'; }
+  }
+
+  // Single delegated click handler — works even before DOMContentLoaded
+  document.addEventListener('click', function (e) {
+    // Tag type button
+    var tagBtn = e.target.closest('.pf-tag-btn');
+    if (tagBtn) {
+      var type  = tagBtn.getAttribute('data-type');
+      var panel = document.getElementById('pf-tag-config');
+      if (pfTagCurrentType === type && panel && panel.style.display !== 'none') {
+        pfTagHide();
+      } else {
+        pfTagShow(type);
+      }
+      return;
+    }
+    // Insert Tag button
+    if (e.target.closest('#pf-tag-insert')) {
+      if (pfTagCurrentType) {
+        insertIntoTextarea(buildTagString(pfTagCurrentType));
+        pfTagHide();
+      }
+      return;
+    }
+    // Close (×) button
+    if (e.target.closest('#pf-tag-config-close')) {
+      pfTagHide();
+      return;
+    }
   });
 
-  // ── Conditions UI ──────────────────────────────────────────────────────────
+  // Live preview while user edits options in the config panel
+  document.addEventListener('input', function (e) {
+    if (!e.target.closest('#pf-tag-config-body')) { return; }
+    var prev = document.getElementById('pf-tag-preview');
+    if (prev) { prev.textContent = buildTagString(pfTagCurrentType); }
+  });
 
-  const fieldNames = Array.from(
-    document.querySelectorAll('[data-pf-name]'),
-  ).map(function (el) { return el.dataset.pfName; });
+  // initTagButtons is kept as a no-op so the DOMContentLoaded call below is harmless
+  function initTagButtons() { /* delegation wired above — nothing to do here */ }
+
+  // ── Conditions UI ──────────────────────────────────────────────────────────
+  //
+  // fieldNames and DOM-dependent setup live inside initConditionsUI() which is
+  // called from initAll() (after DOMContentLoaded) so elements are guaranteed
+  // to exist regardless of where in the <head>/<body> the script tag appears.
+
+  var fieldNames = []; // populated in initConditionsUI()
+
+  const OPERATORS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty'];
 
   function makeFieldSelect(cls, selected) {
-    let opts = fieldNames.map(function (n) {
+    var opts = fieldNames.map(function (n) {
       return '<option value="' + n + '"' + (n === selected ? ' selected' : '') + '>' + n + '</option>';
     }).join('');
     return '<select class="form-control ' + cls + '">' + opts + '</select>';
   }
 
-  const OPERATORS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty'];
-
   function makeOperatorSelect(selected) {
-    let opts = OPERATORS.map(function (op) {
+    var opts = OPERATORS.map(function (op) {
       return '<option value="' + op + '"' + (op === selected ? ' selected' : '') + '>' + op.replace('_', ' ') + '</option>';
     }).join('');
     return '<select class="form-control pf-rule-operator">' + opts + '</select>';
   }
 
-  const addCgBtn = document.getElementById('pf-add-cg');
-  if (addCgBtn) {
-    addCgBtn.addEventListener('click', function () {
-      const tpl = `
-      <div class="panel panel-default pf-cg">
-        <div class="panel-heading">
-          Rule:
-          <select class="pf-cg-action form-control" style="display:inline;width:auto">
-            <option value="show">Show</option><option value="hide">Hide</option>
-          </select>
-          field: ${makeFieldSelect('pf-cg-target', fieldNames[0])}
-          when
-          <select class="pf-cg-logic form-control" style="display:inline;width:auto">
-            <option value="AND">ALL</option><option value="OR">ANY</option>
-          </select>
-          of:
-          <button type="button" class="btn btn-danger btn-xs pull-right pf-remove-cg"><i class="icon-trash"></i></button>
-        </div>
-        <div class="panel-body">
-          <div class="pf-cg-rules"></div>
-          <button type="button" class="btn btn-default btn-xs pf-add-rule">+ Add condition</button>
-        </div>
-      </div>`;
-      document.getElementById('pf-condition-groups').insertAdjacentHTML('beforeend', tpl);
-    });
-  }
-
+  // Delegated handlers for add/remove rule buttons — safe to wire at IIFE time
   document.addEventListener('click', function (e) {
     if (e.target.closest('.pf-remove-cg')) {
       e.target.closest('.pf-cg').remove();
@@ -195,35 +220,68 @@
     }
   });
 
-  const condForm = document.querySelector('#tab-conditions form');
-  if (condForm) {
-    condForm.addEventListener('submit', function () {
-      const groups = [];
-      document.querySelectorAll('.pf-cg').forEach(function (cg) {
-        const rules = [];
-        cg.querySelectorAll('.pf-rule').forEach(function (rule) {
-          rules.push({
-            field:    rule.querySelector('.pf-rule-field').value,
-            operator: rule.querySelector('.pf-rule-operator').value,
-            value:    rule.querySelector('.pf-rule-value').value,
+  function initConditionsUI() {
+    // Collect field names now that DOM is ready
+    fieldNames = Array.from(document.querySelectorAll('[data-pf-name]'))
+      .map(function (el) { return el.dataset.pfName; });
+
+    var addCgBtn = document.getElementById('pf-add-cg');
+    if (addCgBtn) {
+      addCgBtn.addEventListener('click', function () {
+        var tpl = `
+        <div class="panel panel-default pf-cg">
+          <div class="panel-heading">
+            Rule:
+            <select class="pf-cg-action form-control" style="display:inline;width:auto">
+              <option value="show">Show</option><option value="hide">Hide</option>
+            </select>
+            field: ${makeFieldSelect('pf-cg-target', fieldNames[0])}
+            when
+            <select class="pf-cg-logic form-control" style="display:inline;width:auto">
+              <option value="AND">ALL</option><option value="OR">ANY</option>
+            </select>
+            of:
+            <button type="button" class="btn btn-danger btn-xs pull-right pf-remove-cg"><i class="icon-trash"></i></button>
+          </div>
+          <div class="panel-body">
+            <div class="pf-cg-rules"></div>
+            <button type="button" class="btn btn-default btn-xs pf-add-rule">+ Add condition</button>
+          </div>
+        </div>`;
+        document.getElementById('pf-condition-groups').insertAdjacentHTML('beforeend', tpl);
+      });
+    }
+
+    var condForm = document.querySelector('#tab-conditions form');
+    if (condForm) {
+      condForm.addEventListener('submit', function () {
+        var groups = [];
+        document.querySelectorAll('.pf-cg').forEach(function (cg) {
+          var rules = [];
+          cg.querySelectorAll('.pf-rule').forEach(function (rule) {
+            rules.push({
+              field:    rule.querySelector('.pf-rule-field').value,
+              operator: rule.querySelector('.pf-rule-operator').value,
+              value:    rule.querySelector('.pf-rule-value').value,
+            });
+          });
+          groups.push({
+            target_field: cg.querySelector('.pf-cg-target').value,
+            action:       cg.querySelector('.pf-cg-action').value,
+            logic:        cg.querySelector('.pf-cg-logic').value,
+            rules:        rules,
           });
         });
-        groups.push({
-          target_field: cg.querySelector('.pf-cg-target').value,
-          action:       cg.querySelector('.pf-cg-action').value,
-          logic:        cg.querySelector('.pf-cg-logic').value,
-          rules:        rules,
-        });
+        document.getElementById('conditions_json').value = JSON.stringify(groups);
       });
-      document.getElementById('conditions_json').value = JSON.stringify(groups);
-    });
+    }
   }
 
   // ── Webhook UI ─────────────────────────────────────────────────────────────
 
   document.addEventListener('click', function (e) {
-    if (!e.target.closest('.pf-wh-save')) return;
-    const panel = e.target.closest('.pf-webhook-item, .pf-webhook-new');
+    if (!e.target.closest('.pf-wh-save')) { return; }
+    const panel  = e.target.closest('.pf-webhook-item, .pf-webhook-new');
     const formId = document.querySelector('[name="id_form"]').value;
 
     const fieldCheckboxes = panel.querySelectorAll('.pf-wh-field-chk:checked');
@@ -248,22 +306,25 @@
       active:          parseInt(panel.querySelector('.pf-wh-active').value, 10),
     };
 
+    var params = new URLSearchParams();
+    params.set('id_form', formId);
+    params.set('webhooks_json', JSON.stringify([payload]));
     fetch(window.pfAdminUrl + '&action=save_webhooks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_form: formId, webhooks_json: JSON.stringify([payload]) }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
     }).then(function () {
       location.reload();
     });
   });
 
   document.addEventListener('click', function (e) {
-    if (!e.target.closest('.pf-wh-test')) return;
+    if (!e.target.closest('.pf-wh-test')) { return; }
     const panel  = e.target.closest('.pf-webhook-item');
     const id     = panel ? panel.dataset.id : null;
     const result = panel ? panel.querySelector('.pf-wh-test-result') : null;
 
-    if (!id || !result) return;
+    if (!id || !result) { return; }
     result.textContent = 'Testing\u2026';
 
     fetch(window.pfAdminUrl + '&action=test_webhook&id_webhook=' + id)
@@ -293,8 +354,8 @@
   }
 
   document.addEventListener('click', function (e) {
-    if (!e.target.closest('.pf-wh-delete')) return;
-    if (!confirm('Delete this webhook?')) return;
+    if (!e.target.closest('.pf-wh-delete')) { return; }
+    if (!confirm('Delete this webhook?')) { return; }
     const panel = e.target.closest('.pf-webhook-item');
     if (panel) {
       const id = panel.dataset.id;
@@ -307,10 +368,18 @@
 
   document.addEventListener('change', function (e) {
     if (!e.target.classList.contains('pf-wh-fields-sel') &&
-        !e.target.classList.contains('pf-wh-fields-all')) return;
+        !e.target.classList.contains('pf-wh-fields-all')) { return; }
     const panel   = e.target.closest('[class*="pf-webhook"]');
     const showSel = panel.querySelector('.pf-wh-fields-sel').checked;
     panel.querySelector('.pf-wh-field-checkboxes').style.display = showSel ? '' : 'none';
+  });
+
+  // ── Mail (2) enable/disable toggle ────────────────────────────────────────
+
+  document.addEventListener('change', function (e) {
+    if (!e.target.classList.contains('pf-mail-enabled')) { return; }
+    var body = e.target.closest('.panel').querySelector('.pf-mail2-body');
+    if (body) { body.style.display = e.target.checked ? '' : 'none'; }
   });
 
   // ── Mail routing rows ──────────────────────────────────────────────────────
@@ -341,38 +410,43 @@
   if (mailForm) {
     mailForm.addEventListener('submit', function () {
       const routes = [];
-      ['admin', 'confirmation'].forEach(function (type) {
-        const panel   = document.getElementById('mail-' + type);
-        if (!panel) return;
 
-        const addrs   = panel.querySelector('.pf-notify-addresses').value.trim()
-                             .split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
-        const subject = panel.querySelector('.pf-subject').value;
-        const body    = panel.querySelector('.pf-body').value;
-        const enabled = type === 'admin' ? 1 : (panel.querySelector('.pf-mail-enabled').checked ? 1 : 0);
-        const replyEl = panel.querySelector('.pf-reply-to');
+      document.querySelectorAll('.pf-mail-panel').forEach(function (panel) {
+        const type    = panel.dataset.mailType;
+        const toVal   = (panel.querySelector('.pf-mail-to')      || {}).value   || '';
+        const from    = (panel.querySelector('.pf-mail-from')    || {}).value   || '';
+        const subject = (panel.querySelector('.pf-mail-subject') || {}).value   || '';
+        const headers = (panel.querySelector('.pf-mail-headers') || {}).value   || '';
+        const body    = (panel.querySelector('.pf-mail-body')    || {}).value   || '';
+        const enabledEl = panel.querySelector('.pf-mail-enabled');
+        const enabled = type === 'admin' ? 1 : (enabledEl && enabledEl.checked ? 1 : 0);
+
+        // Split To field: comma-separated addresses → array
+        const addrs = toVal.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+
         const routing = [];
-
         if (type === 'admin') {
           document.querySelectorAll('.pf-routing-row').forEach(function (row) {
             routing.push({
-              field: row.querySelector('.pf-route-field').value,
-              value: row.querySelector('.pf-route-value').value,
-              email: row.querySelector('.pf-route-email').value,
+              field: (row.querySelector('.pf-route-field') || {}).value || '',
+              value: (row.querySelector('.pf-route-value') || {}).value || '',
+              email: (row.querySelector('.pf-route-email') || {}).value || '',
             });
           });
         }
 
         routes.push({
-          type:              type,
-          enabled:           enabled,
-          notify_addresses:  addrs,
-          reply_to:          replyEl ? replyEl.value : null,
-          subject:           subject,
-          body:              body,
-          routing_rules:     routing,
+          type:               type,
+          enabled:            enabled,
+          notify_addresses:   addrs,
+          from_address:       from,
+          additional_headers: headers,
+          subject:            subject,
+          body:               body,
+          routing_rules:      routing,
         });
       });
+
       document.getElementById('mail_routes_json').value = JSON.stringify(routes);
     });
   }
@@ -399,10 +473,49 @@
 
   window.pfCopyEmbed = function () {
     const el = document.getElementById('pf-embed-code');
-    if (!el) return;
+    if (!el) { return; }
     navigator.clipboard.writeText(el.value).then(function () {
       alert('Shortcode copied to clipboard.');
     });
   };
+
+  // ── Vanilla JS tab switching (Bootstrap JS may not be present in PS9) ──────
+
+  function initTabs() {
+    document.querySelectorAll('[data-pf-tabs]').forEach(function (nav) {
+      nav.querySelectorAll('a[href^="#"]').forEach(function (link) {
+        link.addEventListener('click', function (e) {
+          e.preventDefault();
+          var targetId = link.getAttribute('href');
+          var container = nav.closest('.panel') || document.body;
+
+          // Deactivate all tabs and panes in this panel
+          nav.querySelectorAll('li').forEach(function (li) { li.classList.remove('active'); });
+          container.querySelectorAll('.tab-pane').forEach(function (pane) {
+            pane.classList.remove('active', 'in');
+          });
+
+          // Activate the clicked tab and matching pane
+          link.closest('li').classList.add('active');
+          var pane = document.querySelector(targetId);
+          if (pane) { pane.classList.add('active', 'in'); }
+        });
+      });
+    });
+  }
+
+  // ── Initialise tag buttons (safe after DOM ready) ──────────────────────────
+
+  function initAll() {
+    initTagButtons();
+    initConditionsUI();
+    initTabs();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAll);
+  } else {
+    initAll();
+  }
 
 })();

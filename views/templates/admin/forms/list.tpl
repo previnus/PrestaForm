@@ -1,5 +1,3 @@
-{extends file="helpers/view/view.tpl"}
-{block name="override_tpl"}
 <div class="panel">
   <div class="panel-heading">
     <i class="icon-list"></i> PrestaForm — All Forms
@@ -8,8 +6,18 @@
     </a>
   </div>
   <div class="panel-body">
-    {if $forms|@count == 0}
-      <p class="text-muted">No forms yet. <a href="{$base_url|escape}&action=edit">Create your first form.</a></p>
+
+    <p class="text-muted" style="margin-bottom:15px">
+      Each form you create can be embedded anywhere on your storefront using a simple shortcode.
+      Click <strong>New Form</strong> to get started, or <strong>Edit</strong> an existing form to update its fields, emails, webhooks, and settings.
+      <strong>Active</strong> forms accept submissions from visitors; <strong>Draft</strong> forms are hidden until you publish them.
+    </p>
+
+    {if $forms_count == 0}
+      <div class="alert alert-info">
+        <i class="icon-info-sign"></i> No forms yet.
+        <a href="{$base_url|escape}&action=edit" class="alert-link">Create your first form</a> — it only takes a minute.
+      </div>
     {else}
     <table class="table tableDnD">
       <thead>
@@ -26,11 +34,11 @@
         {foreach $forms as $f}
         <tr>
           <td>{$f.id_form|intval}</td>
-          <td><strong>{$f.name|escape}</strong></td>
-          <td><code>{$f.slug|escape}</code></td>
-          <td>{$f.submission_count|intval}</td>
+          <td><strong>{$f.name|default:''|escape}</strong></td>
+          <td><code>{$f.slug|default:''|escape}</code></td>
+          <td>{$f.submission_count|default:0|intval}</td>
           <td>
-            {if $f.status == 'active'}
+            {if ($f.status|default:'') == 'active'}
               <span class="label label-success">Active</span>
             {else}
               <span class="label label-default">Draft</span>
@@ -40,11 +48,14 @@
             <a href="{$base_url|escape}&action=edit&id_form={$f.id_form|intval}" class="btn btn-default btn-xs">
               <i class="icon-pencil"></i> Edit
             </a>
-            <a href="{$base_url|escape}&action=delete&id_form={$f.id_form|intval}"
-               class="btn btn-danger btn-xs"
-               onclick="return confirm('Delete this form and all its submissions?')">
-              <i class="icon-trash"></i> Delete
-            </a>
+            <form method="post" action="{$base_url|escape}" style="display:inline"
+                  onsubmit="return confirm('Delete this form and all its submissions? This cannot be undone.')">
+              <input type="hidden" name="action"  value="delete">
+              <input type="hidden" name="id_form" value="{$f.id_form|intval}">
+              <button type="submit" class="btn btn-danger btn-xs">
+                <i class="icon-trash"></i> Delete
+              </button>
+            </form>
           </td>
         </tr>
         {/foreach}
@@ -53,4 +64,3 @@
     {/if}
   </div>
 </div>
-{/block}

@@ -155,7 +155,7 @@
       if (params.get('pf_success') === '1') {
         const msg = document.createElement('div');
         msg.className = 'pf-success-message';
-        msg.textContent = 'Thank you! Your message has been sent.';
+        msg.textContent = wrapper.dataset.successMessage || 'Thank you! Your message has been sent.';
         wrapper.prepend(msg);
         form.style.display = 'none';
       }
