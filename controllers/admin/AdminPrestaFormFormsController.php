@@ -19,7 +19,8 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         $this->addJS(_MODULE_DIR_ . 'prestaform/views/js/admin/form-builder.js');
         $this->addCSS(_MODULE_DIR_ . 'prestaform/views/css/admin.css');
         \Media::addJsDef([
-            'pfAdminUrl' => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+            'pfAdminUrl'   => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+            'pfActiveTab'  => (string) Tools::getValue('pf_tab', ''),
         ]);
 
         $action = Tools::getValue('action');
@@ -110,33 +111,40 @@ class AdminPrestaFormFormsController extends ModuleAdminController
 
         $conditions = $id ? $cRepo->findByForm($id) : [];
 
-        // Pre-serialise current DB state into the hidden JSON fields so that an
-        // accidental empty-string submit (e.g. JS not running) cannot wipe data.
-        $mailRoutesInitJson = json_encode(
-            array_map(static function (array $r): array {
-                // Restore notify_addresses to array before serialising for JS
-                if (is_string($r['notify_addresses'])) {
-                    $r['notify_addresses'] = array_filter(
-                        array_map('trim', explode(',', $r['notify_addresses']))
-                    );
-                }
-                return $r;
-            }, $emailRoutes),
-            JSON_UNESCAPED_UNICODE
-        );
+        // Pre-serialise conditions for the hidden JSON field fallback.
         $conditionsInitJson = json_encode($conditions, JSON_UNESCAPED_UNICODE);
 
+        // Pre-seed mail_routing_json with the admin route's routing_rules so
+        // a JS failure cannot wipe existing conditional-routing config.
+        $adminRoute = null;
+        foreach ($emailRoutes as $r) {
+            if (($r['type'] ?? '') === 'admin') {
+                $adminRoute = $r;
+                break;
+            }
+        }
+        // Restore notify_addresses to array for the routing-rules seed
+        $adminRoutingRules = [];
+        if ($adminRoute) {
+            $rules = $adminRoute['routing_rules'] ?? [];
+            if (is_string($rules)) {
+                $rules = json_decode($rules, true) ?: [];
+            }
+            $adminRoutingRules = $rules;
+        }
+        $mailRoutingInitJson = json_encode($adminRoutingRules, JSON_UNESCAPED_UNICODE);
+
         $this->context->smarty->assign([
-            'form'                   => $form ?? $this->emptyForm(),
-            'fields'                 => $fields,
-            'webhooks'               => $id ? $wRepo->findByForm($id) : [],
-            'conditions'             => $conditions,
-            'email_routes'           => $emailRoutes,
-            'mail_routes_init_json'  => $mailRoutesInitJson,
-            'conditions_init_json'   => $conditionsInitJson,
-            'base_url'               => $this->context->link->getAdminLink('AdminPrestaFormForms'),
-            'captcha_providers'      => ['none' => 'None', 'recaptcha_v2' => 'reCAPTCHA v2', 'recaptcha_v3' => 'reCAPTCHA v3', 'turnstile' => 'Cloudflare Turnstile'],
-            'pf_tpl_dir'             => _PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/',
+            'form'                    => $form ?? $this->emptyForm(),
+            'fields'                  => $fields,
+            'webhooks'                => $id ? $wRepo->findByForm($id) : [],
+            'conditions'              => $conditions,
+            'email_routes'            => $emailRoutes,
+            'mail_routing_init_json'  => $mailRoutingInitJson,
+            'conditions_init_json'    => $conditionsInitJson,
+            'base_url'                => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+            'captcha_providers'       => ['none' => 'None', 'recaptcha_v2' => 'reCAPTCHA v2', 'recaptcha_v3' => 'reCAPTCHA v3', 'turnstile' => 'Cloudflare Turnstile'],
+            'pf_tpl_dir'              => _PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/',
         ]);
 
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/edit.tpl');
@@ -231,10 +239,12 @@ class AdminPrestaFormFormsController extends ModuleAdminController
 
         // Redirect back to the edit page (PRG pattern — prevents double-submit on refresh,
         // and keeps user in context instead of landing on the forms list).
-        // pf_saved=1 triggers the success banner in initContent().
+        // pf_saved=1 triggers the success banner; pf_tab restores the active tab.
+        $pfTab = (string) Tools::getValue('pf_tab', '');
         \Tools::redirectAdmin(
             $this->context->link->getAdminLink('AdminPrestaFormForms') .
-            '&action=edit&id_form=' . $savedId . '&pf_saved=1'
+            '&action=edit&id_form=' . $savedId . '&pf_saved=1' .
+            ($pfTab !== '' ? '&pf_tab=' . urlencode($pfTab) : '')
         );
     }
 
@@ -281,9 +291,11 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             $w['id_form'] = $id;
             $repo->save($w);
         }
+        $pfTab = (string) Tools::getValue('pf_tab', '');
         \Tools::redirectAdmin(
             $this->context->link->getAdminLink('AdminPrestaFormForms') .
-            '&action=edit&id_form=' . $id . '&pf_saved=1'
+            '&action=edit&id_form=' . $id . '&pf_saved=1' .
+            ($pfTab !== '' ? '&pf_tab=' . urlencode($pfTab) : '')
         );
     }
 
@@ -299,27 +311,62 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         }
 
         (new \PrestaForm\Repository\ConditionRepository())->saveForForm($id, $decoded);
+        $pfTab = (string) Tools::getValue('pf_tab', '');
         \Tools::redirectAdmin(
             $this->context->link->getAdminLink('AdminPrestaFormForms') .
-            '&action=edit&id_form=' . $id . '&pf_saved=1'
+            '&action=edit&id_form=' . $id . '&pf_saved=1' .
+            ($pfTab !== '' ? '&pf_tab=' . urlencode($pfTab) : '')
         );
     }
 
     private function handleSaveMail(): void
     {
-        $id      = (int) Tools::getValue('id_form');
-        $raw     = Tools::getValue('mail_routes_json', '[]');
-        $decoded = json_decode($raw, true);
+        $id = (int) Tools::getValue('id_form');
 
-        if (!is_array($decoded)) {
-            $this->errors[] = 'Invalid mail data.';
-            return;
+        // Parse the routing rules JSON (still dynamic — JS serialises only this part)
+        $routingRulesRaw = Tools::getValue('mail_routing_json', '[]');
+        $routingRules    = json_decode($routingRulesRaw, true);
+        if (!is_array($routingRules)) {
+            $routingRules = [];
         }
 
-        (new \PrestaForm\Repository\EmailRouteRepository())->saveForForm($id, $decoded);
+        // Helper: split a comma-separated "To" string into a clean address array
+        $splitAddresses = static function (string $raw): array {
+            return array_values(
+                array_filter(array_map('trim', explode(',', $raw)))
+            );
+        };
+
+        $routes = [
+            [
+                'type'               => 'admin',
+                'enabled'            => 1,
+                'notify_addresses'   => $splitAddresses((string) Tools::getValue('mail_admin_to',      '')),
+                'from_address'       => (string) Tools::getValue('mail_admin_from',    ''),
+                'subject'            => (string) Tools::getValue('mail_admin_subject', ''),
+                'additional_headers' => (string) Tools::getValue('mail_admin_headers', ''),
+                'body'               => (string) Tools::getValue('mail_admin_body',    ''),
+                'routing_rules'      => $routingRules,
+            ],
+            [
+                'type'               => 'confirmation',
+                'enabled'            => Tools::getValue('mail_conf_enabled') ? 1 : 0,
+                'notify_addresses'   => $splitAddresses((string) Tools::getValue('mail_conf_to',      '')),
+                'from_address'       => (string) Tools::getValue('mail_conf_from',    ''),
+                'subject'            => (string) Tools::getValue('mail_conf_subject', ''),
+                'additional_headers' => (string) Tools::getValue('mail_conf_headers', ''),
+                'body'               => (string) Tools::getValue('mail_conf_body',    ''),
+                'routing_rules'      => [],
+            ],
+        ];
+
+        (new \PrestaForm\Repository\EmailRouteRepository())->saveForForm($id, $routes);
+
+        $pfTab = (string) Tools::getValue('pf_tab', '');
         \Tools::redirectAdmin(
             $this->context->link->getAdminLink('AdminPrestaFormForms') .
-            '&action=edit&id_form=' . $id . '&pf_saved=1'
+            '&action=edit&id_form=' . $id . '&pf_saved=1' .
+            ($pfTab !== '' ? '&pf_tab=' . urlencode($pfTab) : '')
         );
     }
 

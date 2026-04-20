@@ -442,48 +442,21 @@
       });
     }
 
-    // ── Serialise mail fields → hidden JSON before submit ─────────────────────
+    // ── Serialise only routing rules → hidden JSON before submit ─────────────
+    // All other mail fields now have real `name` attributes and are submitted
+    // directly as POST params — no JS serialisation needed for those.
     var mailForm = document.querySelector('#tab-mail form');
     if (mailForm) {
       mailForm.addEventListener('submit', function () {
-        var routes = [];
-
-        document.querySelectorAll('.pf-mail-panel').forEach(function (panel) {
-          var type      = panel.dataset.mailType;
-          var toVal     = (panel.querySelector('.pf-mail-to')      || {}).value   || '';
-          var from      = (panel.querySelector('.pf-mail-from')    || {}).value   || '';
-          var subject   = (panel.querySelector('.pf-mail-subject') || {}).value   || '';
-          var headers   = (panel.querySelector('.pf-mail-headers') || {}).value   || '';
-          var body      = (panel.querySelector('.pf-mail-body')    || {}).value   || '';
-          var enabledEl = panel.querySelector('.pf-mail-enabled');
-          var enabled   = type === 'admin' ? 1 : (enabledEl && enabledEl.checked ? 1 : 0);
-
-          var addrs = toVal.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-
-          var routing = [];
-          if (type === 'admin') {
-            document.querySelectorAll('.pf-routing-row').forEach(function (row) {
-              routing.push({
-                field: (row.querySelector('.pf-route-field') || {}).value || '',
-                value: (row.querySelector('.pf-route-value') || {}).value || '',
-                email: (row.querySelector('.pf-route-email') || {}).value || '',
-              });
-            });
-          }
-
-          routes.push({
-            type:               type,
-            enabled:            enabled,
-            notify_addresses:   addrs,
-            from_address:       from,
-            additional_headers: headers,
-            subject:            subject,
-            body:               body,
-            routing_rules:      routing,
+        var routing = [];
+        document.querySelectorAll('.pf-routing-row').forEach(function (row) {
+          routing.push({
+            field: (row.querySelector('.pf-route-field') || {}).value || '',
+            value: (row.querySelector('.pf-route-value') || {}).value || '',
+            email: (row.querySelector('.pf-route-email') || {}).value || '',
           });
         });
-
-        document.getElementById('mail_routes_json').value = JSON.stringify(routes);
+        document.getElementById('mail_routing_json').value = JSON.stringify(routing);
       });
     }
   }
@@ -507,36 +480,27 @@
     }
   }
 
-  // ── Tab memory — remember which tab was active across page reloads ──────────
-  // Each tab's save form appends #tab-X to the action URL so the redirect
-  // lands back on the same tab.  On load, if the URL has a #tab-X hash,
-  // activate that pane immediately.
+  // ── Tab memory — restore the active tab after a server-side save/redirect ──
+  // After saving, the PHP handler appends &pf_tab=<id> to the redirect URL.
+  // The controller passes that value to JS via Media::addJsDef as `pfActiveTab`.
+  // On load we activate the matching pane so the user lands back where they were.
   function initTabMemory() {
-    // Stamp each save form's action with the tab hash so the PS redirect
-    // includes it and the browser scrolls back to the right tab.
-    document.querySelectorAll('.tab-pane').forEach(function (pane) {
-      var tabId = '#' + pane.id;
-      pane.querySelectorAll('form').forEach(function (form) {
-        // Only stamp forms that post back to the admin page (not AJAX fetches)
-        if (form.method.toLowerCase() === 'post') {
-          var action = form.getAttribute('action') || '';
-          if (!action.includes('#')) {
-            form.setAttribute('action', action + tabId);
-          }
-        }
-      });
-    });
+    var pfTab = (typeof pfActiveTab !== 'undefined' && pfActiveTab) ? pfActiveTab : '';
 
-    // On load, activate the tab matching the URL hash (e.g. #tab-mail)
-    var hash = window.location.hash;
-    if (hash && hash.match(/^#tab-/)) {
-      var target = document.querySelector(hash);
+    // Fallback: also check the URL query string directly
+    if (!pfTab) {
+      var params = new URLSearchParams(window.location.search);
+      pfTab = params.get('pf_tab') || '';
+    }
+
+    if (pfTab) {
+      var target = document.getElementById('tab-' + pfTab);
       var nav    = document.getElementById('pfFormTabs');
       if (target && nav) {
         nav.querySelectorAll('li').forEach(function (li) { li.classList.remove('active'); });
         document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.remove('active', 'in'); });
         target.classList.add('active', 'in');
-        var link = nav.querySelector('a[href="' + hash + '"]');
+        var link = nav.querySelector('a[href="#tab-' + pfTab + '"]');
         if (link) { link.closest('li').classList.add('active'); }
       }
     }

@@ -33,6 +33,7 @@
       <form method="post" action="{$base_url|escape}">
         <input type="hidden" name="action" value="save">
         <input type="hidden" name="id_form" value="{$form.id_form|intval}">
+        <input type="hidden" name="pf_tab" value="builder">
         {* Preserve Settings-tab fields so saving here doesn't silently reset
            status to draft or wipe slug / CSS / success message / CAPTCHA. *}
         <input type="hidden" name="slug"             value="{$form.slug|default:''|escape}">
@@ -133,13 +134,18 @@
       <form method="post" action="{$base_url|escape}">
         <input type="hidden" name="action" value="save_mail">
         <input type="hidden" name="id_form" value="{$form.id_form|intval}">
-        {* Pre-seeded with current DB state — protects against accidental wipe if JS fails *}
-        <input type="hidden" name="mail_routes_json" id="mail_routes_json"
-               value="{$mail_routes_init_json|default:'[]'|escape:'html'}">
+        <input type="hidden" name="pf_tab" value="mail">
+        {* Routing rules are still dynamic (add/remove rows), so JS serialises
+           them into this single field. All other mail fields have real names.
+           Pre-seeded from DB so JS failure cannot wipe existing routing rules. *}
+        <input type="hidden" name="mail_routing_json" id="mail_routing_json"
+               value="{$mail_routing_init_json|default:'[]'|escape:'html'}">
 
         {foreach $email_routes as $route}
         {assign var="route_type" value=$route.type|default:''}
         {assign var="is_mail2"   value=($route_type == 'confirmation')}
+        {* Field-name prefix: "admin" for Mail 1, "conf" for Mail 2 *}
+        {if $is_mail2}{assign var="mp" value="conf"}{else}{assign var="mp" value="admin"}{/if}
 
         <div class="panel panel-default pf-mail-panel" data-mail-type="{$route_type|escape}"
              style="{if $is_mail2}margin-top:10px{/if}">
@@ -149,7 +155,7 @@
             </strong>
             {if $is_mail2}
             <label style="margin:0;font-weight:normal;font-size:13px">
-              <input type="checkbox" class="pf-mail-enabled" data-mail="confirmation"
+              <input type="checkbox" class="pf-mail-enabled" name="mail_conf_enabled" value="1"
                 {if $route.enabled|default:0}checked{/if}>
               Use Mail (2)
             </label>
@@ -168,7 +174,8 @@
 
             <div class="form-group">
               <label>To</label>
-              <input type="text" class="form-control pf-mail-to" data-mail="{$route_type|escape}"
+              <input type="text" class="form-control pf-mail-to" name="mail_{$mp}_to"
+                     data-mail="{$route_type|escape}"
                      value="{$route.notify_addresses|default:''|escape}"
                      placeholder="{if $is_mail2}[your-email]{else}admin@yourstore.com, sales@yourstore.com{/if}">
               {if $is_mail2}
@@ -180,7 +187,8 @@
 
             <div class="form-group">
               <label>From</label>
-              <input type="text" class="form-control pf-mail-from" data-mail="{$route_type|escape}"
+              <input type="text" class="form-control pf-mail-from" name="mail_{$mp}_from"
+                     data-mail="{$route_type|escape}"
                      value="{$route.from_address|default:''|escape}"
                      placeholder="[_shop_name] &lt;[_shop_email]&gt;">
               <p class="help-block">The sender name and address. Format: <code>Display Name &lt;email@domain.com&gt;</code> or just <code>email@domain.com</code>. Supports mail-tags.</p>
@@ -188,14 +196,16 @@
 
             <div class="form-group">
               <label>Subject</label>
-              <input type="text" class="form-control pf-mail-subject" data-mail="{$route_type|escape}"
+              <input type="text" class="form-control pf-mail-subject" name="mail_{$mp}_subject"
+                     data-mail="{$route_type|escape}"
                      value="{$route.subject|default:''|escape}">
               <p class="help-block">The email subject line. Supports mail-tags, e.g. <code>[_form_title]</code>, <code>[your-name]</code>.</p>
             </div>
 
             <div class="form-group">
               <label>Additional headers</label>
-              <textarea class="form-control pf-mail-headers" data-mail="{$route_type|escape}"
+              <textarea class="form-control pf-mail-headers" name="mail_{$mp}_headers"
+                        data-mail="{$route_type|escape}"
                         rows="3" style="font-family:monospace">{$route.additional_headers|default:''|escape}</textarea>
               <p class="help-block">
                 One header per line. Supported: <code>Reply-To: email</code> and <code>Bcc: email</code>. Supports mail-tags.<br>
@@ -205,7 +215,8 @@
 
             <div class="form-group">
               <label>Message body</label>
-              <textarea class="form-control pf-mail-body" data-mail="{$route_type|escape}"
+              <textarea class="form-control pf-mail-body" name="mail_{$mp}_body"
+                        data-mail="{$route_type|escape}"
                         rows="12" style="font-family:monospace">{$route.body|default:''|escape}</textarea>
               <p class="help-block">
                 The email body. HTML is supported. Use mail-tags to include submitted values.<br>
@@ -325,6 +336,7 @@
       <form method="post" action="{$base_url|escape}">
         <input type="hidden" name="action" value="save_conditions">
         <input type="hidden" name="id_form" value="{$form.id_form|intval}">
+        <input type="hidden" name="pf_tab" value="conditions">
         {* Pre-seeded with current DB state — protects against accidental wipe if JS fails *}
         <input type="hidden" name="conditions_json" id="conditions_json"
                value="{$conditions_init_json|default:'[]'|escape:'html'}">
@@ -422,6 +434,7 @@
       <form method="post" action="{$base_url|escape}">
         <input type="hidden" name="action" value="save">
         <input type="hidden" name="id_form" value="{$form.id_form|intval}">
+        <input type="hidden" name="pf_tab" value="settings">
         {* Re-post required fields so they are not lost when saving from this tab *}
         <input type="hidden" name="name" value="{$form.name|escape}">
         <input type="hidden" name="template" id="settings-template-mirror" value="{$form.template|escape}">
