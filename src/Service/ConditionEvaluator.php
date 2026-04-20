@@ -83,8 +83,22 @@ class ConditionEvaluator
         $field    = (string) $rule['field'];
         $operator = (string) $rule['operator'];
         $value    = (string) $rule['value'];
-        $actual   = (string) ($data[$field] ?? '');
+        $raw      = $data[$field] ?? '';
 
+        // Checkbox groups arrive as arrays (name="field[]" → $_POST['field'] = [...])
+        if (is_array($raw)) {
+            $values = array_map('strval', $raw);
+            return match ($operator) {
+                'equals'       => in_array($value, $values, true),
+                'not_equals'   => !in_array($value, $values, true),
+                'contains'     => (bool) array_filter($values, fn(string $v) => str_contains($v, $value)),
+                'is_empty'     => empty(array_filter($values, fn(string $v) => $v !== '')),
+                'is_not_empty' => (bool) array_filter($values, fn(string $v) => $v !== ''),
+                default        => false,
+            };
+        }
+
+        $actual = (string) $raw;
         return match ($operator) {
             'equals'       => $actual === $value,
             'not_equals'   => $actual !== $value,

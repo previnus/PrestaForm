@@ -75,11 +75,17 @@
 
     const nameEl = document.getElementById('pfTagName');
     const name = nameEl ? nameEl.value.trim() : '';
-    if (name) { parts.push(name); }
+    if (name) {
+      if (!/^[a-z][a-z0-9_-]*$/.test(name)) {
+        alert('Field name must start with a letter and contain only lowercase letters, numbers, hyphens, and underscores.');
+        return null;
+      }
+      parts.push(name);
+    }
 
     document.querySelectorAll('.pf-tag-param').forEach(function (el) {
       if (el.value.trim()) {
-        parts.push(el.dataset.param + ' "' + el.value.trim() + '"');
+        parts.push(el.dataset.param + ' "' + el.value.trim().replace(/"/g, '\\"') + '"');
       }
     });
 
@@ -90,7 +96,7 @@
     if (optEl && optEl.value.trim()) {
       optEl.value.trim().split('\n').forEach(function (line) {
         line = line.trim();
-        if (line) { parts.push('"' + line + '"'); }
+        if (line) { parts.push('"' + line.replace(/"/g, '\\"') + '"'); }
       });
     }
 
@@ -154,8 +160,11 @@
     // Insert Tag button
     if (e.target.closest('#pf-tag-insert')) {
       if (pfTagCurrentType) {
-        insertIntoTextarea(buildTagString(pfTagCurrentType));
-        pfTagHide();
+        var tagStr = buildTagString(pfTagCurrentType);
+        if (tagStr !== null) {
+          insertIntoTextarea(tagStr);
+          pfTagHide();
+        }
       }
       return;
     }
@@ -170,7 +179,18 @@
   document.addEventListener('input', function (e) {
     if (!e.target.closest('#pf-tag-config-body')) { return; }
     var prev = document.getElementById('pf-tag-preview');
-    if (prev) { prev.textContent = buildTagString(pfTagCurrentType); }
+    if (prev) {
+      var nameEl = document.getElementById('pfTagName');
+      var name = nameEl ? nameEl.value.trim() : '';
+      if (name && !/^[a-z][a-z0-9_-]*$/.test(name)) {
+        prev.textContent = 'Invalid field name — use lowercase letters, numbers, hyphens, underscores';
+        prev.style.color = '#c0392b';
+      } else {
+        prev.style.color = '';
+        var tagStr = buildTagString(pfTagCurrentType);
+        if (tagStr !== null) { prev.textContent = tagStr; }
+      }
+    }
   });
 
   // initTagButtons is kept as a no-op so the DOMContentLoaded call below is harmless
@@ -464,19 +484,26 @@
   function initSettingsUI() {
     // ── Retention custom-days input toggle ────────────────────────────────────
     var retentionSel = document.getElementById('retention-select');
-    if (retentionSel) {
-      retentionSel.addEventListener('change', function () {
-        var input = document.getElementById('retention-custom-input');
-        if (retentionSel.value === 'custom') {
-          input.style.display = '';
-          input.name = 'retention_days';
-          retentionSel.name = '';
-        } else {
-          input.style.display = 'none';
-          input.name = '';
-          retentionSel.name = 'retention_days';
-        }
-      });
+    var retentionInput = document.getElementById('retention-custom-input');
+    if (retentionSel && retentionInput) {
+      function applyRetentionState() {
+        var isCustom = retentionSel.value === 'custom';
+        retentionInput.style.display = isCustom ? '' : 'none';
+        retentionInput.disabled = !isCustom;
+        retentionInput.name = isCustom ? 'retention_days' : 'retention_days_custom';
+        retentionSel.name = isCustom ? '' : 'retention_days';
+      }
+      retentionSel.addEventListener('change', applyRetentionState);
+
+      // On load: if the saved value is not one of the preset options, switch to
+      // custom mode so the value isn't silently lost when the user saves.
+      var presets = ['', '30', '90', '180', '365', 'custom'];
+      if (retentionInput.value && !presets.includes(retentionSel.value)) {
+        retentionSel.value = 'custom';
+        applyRetentionState();
+      } else {
+        applyRetentionState();
+      }
     }
   }
 

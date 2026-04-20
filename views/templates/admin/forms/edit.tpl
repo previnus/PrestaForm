@@ -515,7 +515,8 @@
               <input type="number" name="retention_days_custom" id="retention-custom-input"
                      class="form-control" min="1" placeholder="Number of days"
                      style="margin-top:8px;display:none"
-                     value="{$form.retention_days|intval}">
+                     value="{$form.retention_days|intval}"
+                     disabled>
               <p class="help-block">
                 How long to keep submission records in the database.
                 Older submissions are deleted automatically by the daily cron job.

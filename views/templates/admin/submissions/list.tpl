@@ -55,9 +55,12 @@
           <td>
             <a href="{$base_url|escape}&action=view&id_submission={$s.id_submission|intval}"
                class="btn btn-default btn-xs"><i class="icon-eye"></i> View</a>
-            <a href="{$base_url|escape}&action=delete&id_submission={$s.id_submission|intval}"
-               class="btn btn-danger btn-xs"
-               onclick="return confirm('Delete this submission?')"><i class="icon-trash"></i></a>
+            <form method="post" action="{$base_url|escape}" style="display:inline"
+                  onsubmit="return confirm('Delete this submission?')">
+              <input type="hidden" name="action"        value="delete">
+              <input type="hidden" name="id_submission" value="{$s.id_submission|intval}">
+              <button type="submit" class="btn btn-danger btn-xs"><i class="icon-trash"></i></button>
+            </form>
           </td>
         </tr>
         {foreachelse}

@@ -8,14 +8,28 @@
   'use strict';
 
   function evalRule(form, rule) {
-    const el = form.querySelector('[name="' + rule.field + '"]') ||
-               form.querySelector('[name="' + rule.field + '[]"]');
+    // Checkbox groups use name="field[]" and can have multiple checked values
+    const groupEls = form.querySelectorAll('[name="' + rule.field + '[]"]');
+    if (groupEls.length > 0) {
+      const checked = Array.prototype.filter.call(groupEls, function (cb) { return cb.checked; })
+                           .map(function (cb) { return cb.value; });
+      switch (rule.operator) {
+        case 'equals':       return checked.indexOf(rule.value) !== -1;
+        case 'not_equals':   return checked.indexOf(rule.value) === -1;
+        case 'contains':     return checked.some(function (v) { return v.indexOf(rule.value) !== -1; });
+        case 'is_empty':     return checked.length === 0;
+        case 'is_not_empty': return checked.length > 0;
+        default:             return false;
+      }
+    }
+
+    const el = form.querySelector('[name="' + rule.field + '"]');
     const actual = el ? (el.type === 'checkbox' ? (el.checked ? el.value : '') : el.value) : '';
 
     switch (rule.operator) {
       case 'equals':       return actual === rule.value;
       case 'not_equals':   return actual !== rule.value;
-      case 'contains':     return actual.includes(rule.value);
+      case 'contains':     return actual.indexOf(rule.value) !== -1;
       case 'is_empty':     return actual === '';
       case 'is_not_empty': return actual !== '';
       default:             return false;

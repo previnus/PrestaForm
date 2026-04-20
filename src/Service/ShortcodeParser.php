@@ -79,11 +79,11 @@ class ShortcodeParser
             if (str_contains($token, ':')) {
                 // key:value — value may or may not be quoted
                 [$key, $value] = explode(':', $token, 2);
-                $params[trim($key)] = trim($value, '"\'');
+                $params[trim($key)] = $this->unquote($value);
                 $i++;
             } elseif ($this->isQuoted($token)) {
                 // Bare quoted string → option
-                $value = trim($token, '"\'');
+                $value = $this->unquote($token);
                 if (str_contains($value, '|')) {
                     [$label, $val] = explode('|', $value, 2);
                     $options[] = ['label' => $label, 'value' => $val];
@@ -93,7 +93,7 @@ class ShortcodeParser
                 $i++;
             } elseif (isset($tokens[$i + 1]) && $this->isQuoted($tokens[$i + 1])) {
                 // bare_word "quoted value" → named param (e.g. placeholder "Name")
-                $params[$token] = trim($tokens[$i + 1], '"\'');
+                $params[$token] = $this->unquote($tokens[$i + 1]);
                 $i += 2;
             } else {
                 // Bare keyword → boolean flag
@@ -103,6 +103,24 @@ class ShortcodeParser
         }
 
         return ['params' => $params, 'options' => $options, 'flags' => $flags];
+    }
+
+    /**
+     * Strip outer quotes and unescape backslash sequences inside the token.
+     * Handles both double-quoted and single-quoted tokens emitted by buildTagString().
+     */
+    private function unquote(string $token): string
+    {
+        $token = trim($token);
+        if (strlen($token) >= 2) {
+            if (str_starts_with($token, '"') && str_ends_with($token, '"')) {
+                return stripcslashes(substr($token, 1, -1));
+            }
+            if (str_starts_with($token, "'") && str_ends_with($token, "'")) {
+                return stripcslashes(substr($token, 1, -1));
+            }
+        }
+        return $token;
     }
 
     /** @return list<string> */

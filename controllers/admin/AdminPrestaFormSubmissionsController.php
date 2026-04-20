@@ -73,6 +73,9 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
         $action = Tools::getValue('action');
 
         if ($action === 'delete') {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                return;
+            }
             $id   = (int) Tools::getValue('id_submission');
             $repo = new \PrestaForm\Repository\SubmissionRepository();
             $repo->delete($id);
