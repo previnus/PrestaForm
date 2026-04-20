@@ -1,0 +1,6 @@
+New Form Submission
+===================
+
+{message}
+
+-- Sent by PrestaForm
