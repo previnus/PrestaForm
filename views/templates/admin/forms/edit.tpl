@@ -33,6 +33,14 @@
       <form method="post" action="{$base_url|escape}">
         <input type="hidden" name="action" value="save">
         <input type="hidden" name="id_form" value="{$form.id_form|intval}">
+        {* Preserve Settings-tab fields so saving here doesn't silently reset
+           status to draft or wipe slug / CSS / success message / CAPTCHA. *}
+        <input type="hidden" name="slug"             value="{$form.slug|default:''|escape}">
+        <input type="hidden" name="status"           value="{$form.status|default:'draft'|escape}">
+        <input type="hidden" name="success_message"  value="{$form.success_message|default:''|escape}">
+        <input type="hidden" name="custom_css"       value="{$form.custom_css|default:''|escape}">
+        <input type="hidden" name="captcha_provider" value="{$form.captcha_provider|default:'none'|escape}">
+        <input type="hidden" name="retention_days"   value="{$form.retention_days|default:''}">
 
         <div class="form-group">
           <label>Form Name <span class="text-danger">*</span></label>
