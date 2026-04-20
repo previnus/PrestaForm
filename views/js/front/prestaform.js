@@ -156,8 +156,14 @@
         const msg = document.createElement('div');
         msg.className = 'pf-success-message';
         msg.textContent = wrapper.dataset.successMessage || 'Thank you! Your message has been sent.';
-        wrapper.prepend(msg);
-        form.style.display = 'none';
+        wrapper.innerHTML = '';
+        wrapper.appendChild(msg);
+      } else if (params.get('pf_error') === '1') {
+        // File-upload form failed validation — show a generic error at the top.
+        const div = document.createElement('div');
+        div.className = 'pf-global-error';
+        div.textContent = 'There was a problem submitting the form. Please check your input and try again.';
+        form.prepend(div);
       }
     });
   }

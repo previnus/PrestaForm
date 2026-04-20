@@ -18,28 +18,33 @@ class PrestaformSubmitModuleFrontController extends ModuleFrontController
             \Tools::getRemoteAddr()
         );
 
-        // If form contains file field, form POSTs normally (not AJAX).
-        // Redirect to current page with success query param.
-        if ($this->isMultipart()) {
-            $redirectUrl = \Tools::getReferer();
-            // Validate Referer belongs to this shop to prevent open redirect
-            $refererHost = parse_url($redirectUrl, PHP_URL_HOST) ?? '';
-            $shopHost    = $_SERVER['HTTP_HOST'] ?? '';
-            if ($refererHost !== $shopHost) {
-                $redirectUrl = \Context::getContext()->link->getBaseLink();
-            }
-            $sep = str_contains($redirectUrl, '?') ? '&' : '?';
-            \Tools::redirectLink($redirectUrl . $sep . ($result['success'] ? 'pf_success=1' : 'pf_error=1'));
+        // AJAX submissions (non-file forms) send X-Requested-With: XMLHttpRequest.
+        // Return JSON so the front-end JS can display inline success / errors.
+        //
+        // NOTE: we intentionally check the XHR header, NOT Content-Type.
+        // fetch() + FormData always sends multipart/form-data even with no file
+        // inputs, so Content-Type is an unreliable discriminator here.
+        if ($this->isAjaxRequest()) {
+            $this->outputJson($result);
             return;
         }
 
-        $this->outputJson($result);
+        // Native browser POST (file-upload forms bypass AJAX in our JS).
+        // Redirect back to the referrer with a status query param; the JS reads it.
+        $redirectUrl = \Tools::getReferer();
+        // Validate Referer belongs to this shop to prevent open redirect
+        $refererHost = parse_url($redirectUrl, PHP_URL_HOST) ?? '';
+        $shopHost    = $_SERVER['HTTP_HOST'] ?? '';
+        if ($refererHost !== $shopHost) {
+            $redirectUrl = \Context::getContext()->link->getBaseLink();
+        }
+        $sep = str_contains($redirectUrl, '?') ? '&' : '?';
+        \Tools::redirectLink($redirectUrl . $sep . ($result['success'] ? 'pf_success=1' : 'pf_error=1'));
     }
 
-    private function isMultipart(): bool
+    private function isAjaxRequest(): bool
     {
-        $ct = $_SERVER['CONTENT_TYPE'] ?? '';
-        return str_contains($ct, 'multipart/form-data');
+        return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
     }
 
     private function outputJson(array $data): void
