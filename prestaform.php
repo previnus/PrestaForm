@@ -16,7 +16,7 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-class Prestaform extends Module
+class Prestaform extends Module implements WidgetInterface
 {
     public function __construct()
     {
@@ -204,34 +204,82 @@ class Prestaform extends Module
         return preg_replace_callback(
             '/\{prestaform\s+([^}]+)\}/i',
             function (array $m): string {
-                $attrs = $this->parseShortcodeAttrs($m[1]);
-                $formRepo = new \PrestaForm\Repository\FormRepository();
-
-                if (!empty($attrs['id'])) {
-                    $form = $formRepo->findById((int) $attrs['id']);
-                } elseif (!empty($attrs['name'])) {
-                    $form = $formRepo->findBySlug($attrs['name']);
-                } else {
-                    return '';
-                }
-
-                if (!$form || $form['status'] !== 'active') {
-                    return '';
-                }
-
-                if (!empty($attrs['title'])) {
-                    $form['name'] = $attrs['title'];
-                }
-
-                $condRepo  = new \PrestaForm\Repository\ConditionRepository();
-                $renderer  = new \PrestaForm\Service\FormRenderer(new \PrestaForm\Service\ShortcodeParser());
-                $actionUrl = $this->context->link->getModuleLink('prestaform', 'submit');
-                $token     = \Tools::getToken(false);
-
-                return $renderer->render($form, $actionUrl, $token, $condRepo->findByForm((int) $form['id_form']));
+                return $this->renderFormByConfig($this->parseShortcodeAttrs($m[1]));
             },
             $output
         ) ?? $output;
+    }
+
+    // ── WidgetInterface ──────────────────────────────────────────────────────
+    // Lets Creative Elements (and any other PS widget-aware page builder) embed
+    // a PrestaForm form via {widget name="prestaform" id_form="X"} or
+    // {widget name="prestaform" slug="contact-form"}.
+
+    /**
+     * Render a form as a PS widget.
+     *
+     * Creative Elements passes whatever key=value pairs the editor configured
+     * inside the widget element as the $configuration array.
+     *
+     * @param string               $hookName      Unused — required by interface
+     * @param array<string, mixed> $configuration Widget parameters (id_form / slug)
+     */
+    public function renderWidget(string $hookName, array $configuration): string
+    {
+        return $this->renderFormByConfig($configuration);
+    }
+
+    /**
+     * Variables for a widget Smarty sub-template (not used — we render inline).
+     *
+     * @param string               $hookName
+     * @param array<string, mixed> $configuration
+     * @return array<string, mixed>
+     */
+    public function getWidgetVariables(string $hookName, array $configuration): array
+    {
+        return [];
+    }
+
+    /**
+     * Shared render helper used by both the Smarty output-filter shortcode path
+     * and the WidgetInterface path.
+     *
+     * Accepts:  id / id_form  →  look up by numeric ID
+     *           name / slug   →  look up by slug
+     *
+     * @param array<string, mixed> $attrs
+     */
+    private function renderFormByConfig(array $attrs): string
+    {
+        $formRepo = new \PrestaForm\Repository\FormRepository();
+
+        if (!empty($attrs['id_form'])) {
+            $form = $formRepo->findById((int) $attrs['id_form']);
+        } elseif (!empty($attrs['id'])) {
+            $form = $formRepo->findById((int) $attrs['id']);
+        } elseif (!empty($attrs['slug'])) {
+            $form = $formRepo->findBySlug((string) $attrs['slug']);
+        } elseif (!empty($attrs['name'])) {
+            $form = $formRepo->findBySlug((string) $attrs['name']);
+        } else {
+            return '';
+        }
+
+        if (!$form || $form['status'] !== 'active') {
+            return '';
+        }
+
+        if (!empty($attrs['title'])) {
+            $form['name'] = $attrs['title'];
+        }
+
+        $condRepo  = new \PrestaForm\Repository\ConditionRepository();
+        $renderer  = new \PrestaForm\Service\FormRenderer(new \PrestaForm\Service\ShortcodeParser());
+        $actionUrl = $this->context->link->getModuleLink('prestaform', 'submit');
+        $token     = \Tools::getToken(false);
+
+        return $renderer->render($form, $actionUrl, $token, $condRepo->findByForm((int) $form['id_form']));
     }
 
     private function parseShortcodeAttrs(string $attrString): array
