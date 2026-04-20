@@ -11,12 +11,24 @@ class PrestaformSubmitModuleFrontController extends ModuleFrontController
 
     public function postProcess(): void
     {
-        $service = new \PrestaForm\Service\SubmissionService();
-        $result  = $service->handle(
-            \Tools::getAllValues(),
-            $_FILES,
-            \Tools::getRemoteAddr()
-        );
+        try {
+            $service = new \PrestaForm\Service\SubmissionService();
+            $result  = $service->handle(
+                \Tools::getAllValues(),
+                $_FILES,
+                \Tools::getRemoteAddr()
+            );
+        } catch (\Throwable $e) {
+            \PrestaShopLogger::addLog('PrestaForm submit error: ' . $e->getMessage(), 3);
+            if ($this->isAjaxRequest()) {
+                $this->outputJson(['success' => false, 'errors' => ['_form' => 'An unexpected error occurred. Please try again.']]);
+                return;
+            }
+            $redirectUrl = \Tools::getReferer() ?: \Context::getContext()->link->getBaseLink();
+            $sep = str_contains($redirectUrl, '?') ? '&' : '?';
+            \Tools::redirectLink($redirectUrl . $sep . 'pf_error=1');
+            return;
+        }
 
         // AJAX submissions (non-file forms) send X-Requested-With: XMLHttpRequest.
         // Return JSON so the front-end JS can display inline success / errors.

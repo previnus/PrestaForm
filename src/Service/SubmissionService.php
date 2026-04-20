@@ -98,34 +98,56 @@ class SubmissionService
 
         $submissionId = $this->subRepo->save($formId, $data, $ip);
 
-        // Fire emails
-        $routes     = $this->emailRepo->findByForm($formId);
-        $hasAdmin   = false;
+        // Fire emails — wrapped so a mail/SMTP failure never kills the JSON response.
+        // The submission is already saved; the visitor should still see success.
+        try {
+            $routes   = $this->emailRepo->findByForm($formId);
+            $hasAdmin = false;
 
-        foreach ($routes as $route) {
-            if ($route['type'] === 'admin') {
-                $hasAdmin = true;
-                if ((int) ($route['enabled'] ?? 1)) {
-                    $this->emailRouter->dispatchAdmin($form, $route, $data);
+            foreach ($routes as $route) {
+                if ($route['type'] === 'admin') {
+                    $hasAdmin = true;
+                    if ((int) ($route['enabled'] ?? 1)) {
+                        $this->emailRouter->dispatchAdmin($form, $route, $data);
+                    }
+                } elseif ($route['type'] === 'confirmation') {
+                    $this->emailRouter->dispatchConfirmation($form, $route, $data);
                 }
-            } elseif ($route['type'] === 'confirmation') {
-                $this->emailRouter->dispatchConfirmation($form, $route, $data);
             }
-        }
 
-        // If no admin route was ever saved for this form, send a fallback notification
-        // to the store contact email so submissions are never silently lost.
-        if (!$hasAdmin) {
-            $this->emailRouter->dispatchAdmin($form, [
-                'notify_addresses' => [],
-                'routing_rules'    => [],
-                'subject'          => 'New submission: [_form_title]',
-                'body'             => '[_all_fields]',
-            ], $data);
+            // If no admin route was ever saved for this form, send a fallback notification
+            // to the store contact email so submissions are never silently lost.
+            if (!$hasAdmin) {
+                $this->emailRouter->dispatchAdmin($form, [
+                    'notify_addresses' => [],
+                    'routing_rules'    => [],
+                    'subject'          => 'New submission: [_form_title]',
+                    'body'             => '[_all_fields]',
+                ], $data);
+            }
+        } catch (\Throwable $e) {
+            // Log but do not surface mail errors to the visitor
+            \PrestaShopLogger::addLog(
+                'PrestaForm mail error (form ' . $formId . '): ' . $e->getMessage(),
+                3,
+                null,
+                'PrestaForm',
+                $submissionId
+            );
         }
 
         // Fire webhooks (non-blocking — failures are logged and retried via cron)
-        $this->webhooks->dispatchForSubmission($formId, $submissionId, $data);
+        try {
+            $this->webhooks->dispatchForSubmission($formId, $submissionId, $data);
+        } catch (\Throwable $e) {
+            \PrestaShopLogger::addLog(
+                'PrestaForm webhook error (form ' . $formId . '): ' . $e->getMessage(),
+                3,
+                null,
+                'PrestaForm',
+                $submissionId
+            );
+        }
 
         return ['success' => true, 'errors' => []];
     }
