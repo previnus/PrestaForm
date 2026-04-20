@@ -88,7 +88,13 @@ class AdminPrestaFormFormsController extends ModuleAdminController
                 'routing_rules'      => [],
             ],
         ];
-        $emailRoutes = $id ? $eRepo->findByForm($id) : $defaultRoutes;
+        // Use DB routes when they exist; fall back to defaults for new forms AND
+        // for existing forms that have never had their mail settings saved yet
+        // (the DB table is only written by handleSaveMail — not on form create).
+        $emailRoutes = $id ? $eRepo->findByForm($id) : [];
+        if (empty($emailRoutes)) {
+            $emailRoutes = $defaultRoutes;
+        }
 
         // Pre-convert notify_addresses arrays to comma-separated strings (new CF7-style
         // To field) so Smarty never needs |@implode (avoids PS9 strict-type crash).
