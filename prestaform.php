@@ -5,6 +5,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use PrestaShop\PrestaShop\Core\Module\WidgetInterface;
+
 // PSR-4 autoloader for PrestaForm\* — no composer vendor needed in production
 spl_autoload_register(static function (string $class): void {
     if (strncmp($class, 'PrestaForm\\', 11) !== 0) {
