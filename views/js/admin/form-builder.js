@@ -337,21 +337,7 @@
       });
   });
 
-  const addWhBtn = document.getElementById('pf-add-webhook');
-  if (addWhBtn) {
-    addWhBtn.addEventListener('click', function () {
-      const tplEl  = document.getElementById('pf-webhook-tpl');
-      const newDiv = document.createElement('div');
-      newDiv.className = 'panel panel-default pf-webhook-new';
-      newDiv.innerHTML = `
-        <div class="panel-heading">New Webhook</div>
-        <div class="panel-body">
-          <input type="hidden" class="pf-wh-id" value="0">
-          ${tplEl.innerHTML}
-        </div>`;
-      document.getElementById('pf-webhook-list').prepend(newDiv);
-    });
-  }
+  // addWhBtn wired in initAll() — DOM not ready at IIFE time
 
   document.addEventListener('click', function (e) {
     if (!e.target.closest('.pf-wh-delete')) { return; }
@@ -382,92 +368,7 @@
     if (body) { body.style.display = e.target.checked ? '' : 'none'; }
   });
 
-  // ── Mail routing rows ──────────────────────────────────────────────────────
-
-  const addRouteBtn = document.getElementById('pf-add-route');
-  if (addRouteBtn) {
-    addRouteBtn.addEventListener('click', function () {
-      const fieldOpts = fieldNames.map(function (n) {
-        return '<option value="' + n + '">' + n + '</option>';
-      }).join('');
-      document.getElementById('pf-routing-rows').insertAdjacentHTML('beforeend', `
-        <tr class="pf-routing-row">
-          <td><select class="form-control pf-route-field">${fieldOpts}</select></td>
-          <td><input type="text" class="form-control pf-route-value" placeholder="value"></td>
-          <td><input type="text" class="form-control pf-route-email" placeholder="email@store.com"></td>
-          <td><button type="button" class="btn btn-danger btn-xs pf-remove-route"><i class="icon-trash"></i></button></td>
-        </tr>`);
-    });
-  }
-
-  document.addEventListener('click', function (e) {
-    if (e.target.closest('.pf-remove-route')) {
-      e.target.closest('.pf-routing-row').remove();
-    }
-  });
-
-  const mailForm = document.querySelector('#tab-mail form');
-  if (mailForm) {
-    mailForm.addEventListener('submit', function () {
-      const routes = [];
-
-      document.querySelectorAll('.pf-mail-panel').forEach(function (panel) {
-        const type    = panel.dataset.mailType;
-        const toVal   = (panel.querySelector('.pf-mail-to')      || {}).value   || '';
-        const from    = (panel.querySelector('.pf-mail-from')    || {}).value   || '';
-        const subject = (panel.querySelector('.pf-mail-subject') || {}).value   || '';
-        const headers = (panel.querySelector('.pf-mail-headers') || {}).value   || '';
-        const body    = (panel.querySelector('.pf-mail-body')    || {}).value   || '';
-        const enabledEl = panel.querySelector('.pf-mail-enabled');
-        const enabled = type === 'admin' ? 1 : (enabledEl && enabledEl.checked ? 1 : 0);
-
-        // Split To field: comma-separated addresses → array
-        const addrs = toVal.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-
-        const routing = [];
-        if (type === 'admin') {
-          document.querySelectorAll('.pf-routing-row').forEach(function (row) {
-            routing.push({
-              field: (row.querySelector('.pf-route-field') || {}).value || '',
-              value: (row.querySelector('.pf-route-value') || {}).value || '',
-              email: (row.querySelector('.pf-route-email') || {}).value || '',
-            });
-          });
-        }
-
-        routes.push({
-          type:               type,
-          enabled:            enabled,
-          notify_addresses:   addrs,
-          from_address:       from,
-          additional_headers: headers,
-          subject:            subject,
-          body:               body,
-          routing_rules:      routing,
-        });
-      });
-
-      document.getElementById('mail_routes_json').value = JSON.stringify(routes);
-    });
-  }
-
-  // ── Retention custom input ─────────────────────────────────────────────────
-
-  const retentionSel = document.getElementById('retention-select');
-  if (retentionSel) {
-    retentionSel.addEventListener('change', function () {
-      const input = document.getElementById('retention-custom-input');
-      if (retentionSel.value === 'custom') {
-        input.style.display = '';
-        input.name = 'retention_days';
-        retentionSel.name = '';
-      } else {
-        input.style.display = 'none';
-        input.name = '';
-        retentionSel.name = 'retention_days';
-      }
-    });
-  }
+  // ── Mail routing rows / form serialiser / retention — wired in initAll() ──
 
   // ── Copy embed shortcode ───────────────────────────────────────────────────
 
@@ -506,9 +407,148 @@
 
   // ── Initialise tag buttons (safe after DOM ready) ──────────────────────────
 
+  function initWebhookUI() {
+    var addWhBtn = document.getElementById('pf-add-webhook');
+    if (addWhBtn) {
+      addWhBtn.addEventListener('click', function () {
+        var tplEl  = document.getElementById('pf-webhook-tpl');
+        var newDiv = document.createElement('div');
+        newDiv.className = 'panel panel-default pf-webhook-new';
+        newDiv.innerHTML = '<div class="panel-heading">New Webhook</div>'
+          + '<div class="panel-body">'
+          + '<input type="hidden" class="pf-wh-id" value="0">'
+          + tplEl.innerHTML
+          + '</div>';
+        document.getElementById('pf-webhook-list').prepend(newDiv);
+      });
+    }
+  }
+
+  function initMailUI() {
+    // ── Add routing rule row ──────────────────────────────────────────────────
+    var addRouteBtn = document.getElementById('pf-add-route');
+    if (addRouteBtn) {
+      addRouteBtn.addEventListener('click', function () {
+        var fieldOpts = fieldNames.map(function (n) {
+          return '<option value="' + n + '">' + n + '</option>';
+        }).join('');
+        document.getElementById('pf-routing-rows').insertAdjacentHTML('beforeend',
+          '<tr class="pf-routing-row">'
+          + '<td><select class="form-control pf-route-field">' + fieldOpts + '</select></td>'
+          + '<td><input type="text" class="form-control pf-route-value" placeholder="value to match"></td>'
+          + '<td><input type="text" class="form-control pf-route-email" placeholder="recipient@example.com"></td>'
+          + '<td><button type="button" class="btn btn-danger btn-xs pf-remove-route"><i class="icon-trash"></i></button></td>'
+          + '</tr>');
+      });
+    }
+
+    // ── Serialise mail fields → hidden JSON before submit ─────────────────────
+    var mailForm = document.querySelector('#tab-mail form');
+    if (mailForm) {
+      mailForm.addEventListener('submit', function () {
+        var routes = [];
+
+        document.querySelectorAll('.pf-mail-panel').forEach(function (panel) {
+          var type      = panel.dataset.mailType;
+          var toVal     = (panel.querySelector('.pf-mail-to')      || {}).value   || '';
+          var from      = (panel.querySelector('.pf-mail-from')    || {}).value   || '';
+          var subject   = (panel.querySelector('.pf-mail-subject') || {}).value   || '';
+          var headers   = (panel.querySelector('.pf-mail-headers') || {}).value   || '';
+          var body      = (panel.querySelector('.pf-mail-body')    || {}).value   || '';
+          var enabledEl = panel.querySelector('.pf-mail-enabled');
+          var enabled   = type === 'admin' ? 1 : (enabledEl && enabledEl.checked ? 1 : 0);
+
+          var addrs = toVal.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+
+          var routing = [];
+          if (type === 'admin') {
+            document.querySelectorAll('.pf-routing-row').forEach(function (row) {
+              routing.push({
+                field: (row.querySelector('.pf-route-field') || {}).value || '',
+                value: (row.querySelector('.pf-route-value') || {}).value || '',
+                email: (row.querySelector('.pf-route-email') || {}).value || '',
+              });
+            });
+          }
+
+          routes.push({
+            type:               type,
+            enabled:            enabled,
+            notify_addresses:   addrs,
+            from_address:       from,
+            additional_headers: headers,
+            subject:            subject,
+            body:               body,
+            routing_rules:      routing,
+          });
+        });
+
+        document.getElementById('mail_routes_json').value = JSON.stringify(routes);
+      });
+    }
+  }
+
+  function initSettingsUI() {
+    // ── Retention custom-days input toggle ────────────────────────────────────
+    var retentionSel = document.getElementById('retention-select');
+    if (retentionSel) {
+      retentionSel.addEventListener('change', function () {
+        var input = document.getElementById('retention-custom-input');
+        if (retentionSel.value === 'custom') {
+          input.style.display = '';
+          input.name = 'retention_days';
+          retentionSel.name = '';
+        } else {
+          input.style.display = 'none';
+          input.name = '';
+          retentionSel.name = 'retention_days';
+        }
+      });
+    }
+  }
+
+  // ── Tab memory — remember which tab was active across page reloads ──────────
+  // Each tab's save form appends #tab-X to the action URL so the redirect
+  // lands back on the same tab.  On load, if the URL has a #tab-X hash,
+  // activate that pane immediately.
+  function initTabMemory() {
+    // Stamp each save form's action with the tab hash so the PS redirect
+    // includes it and the browser scrolls back to the right tab.
+    document.querySelectorAll('.tab-pane').forEach(function (pane) {
+      var tabId = '#' + pane.id;
+      pane.querySelectorAll('form').forEach(function (form) {
+        // Only stamp forms that post back to the admin page (not AJAX fetches)
+        if (form.method.toLowerCase() === 'post') {
+          var action = form.getAttribute('action') || '';
+          if (!action.includes('#')) {
+            form.setAttribute('action', action + tabId);
+          }
+        }
+      });
+    });
+
+    // On load, activate the tab matching the URL hash (e.g. #tab-mail)
+    var hash = window.location.hash;
+    if (hash && hash.match(/^#tab-/)) {
+      var target = document.querySelector(hash);
+      var nav    = document.getElementById('pfFormTabs');
+      if (target && nav) {
+        nav.querySelectorAll('li').forEach(function (li) { li.classList.remove('active'); });
+        document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.remove('active', 'in'); });
+        target.classList.add('active', 'in');
+        var link = nav.querySelector('a[href="' + hash + '"]');
+        if (link) { link.closest('li').classList.add('active'); }
+      }
+    }
+  }
+
   function initAll() {
     initTagButtons();
     initConditionsUI();
+    initWebhookUI();
+    initMailUI();
+    initSettingsUI();
+    initTabMemory();
     initTabs();
   }
 
