@@ -104,7 +104,16 @@
       body: new FormData(form),
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-      .then(function (res) { return res.json(); })
+      .then(function (res) {
+        var status = res.status;
+        return res.text().then(function (text) {
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            throw new Error('HTTP ' + status + ' — server returned non-JSON:\n' + text.substring(0, 500));
+          }
+        });
+      })
       .then(function (data) {
         if (data.success) {
           const msg = document.createElement('div');
@@ -136,14 +145,14 @@
           });
         }
       })
-      .catch(function () {
+      .catch(function (err) {
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = submitBtn.dataset.origText || 'Submit';
         }
         const div = document.createElement('div');
         div.className = 'pf-global-error';
-        div.textContent = 'A network error occurred. Please try again.';
+        div.textContent = 'Submission error: ' + (err && err.message ? err.message : 'Please try again.');
         form.prepend(div);
       });
   }
