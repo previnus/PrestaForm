@@ -7,7 +7,7 @@ if (!defined('_PS_VERSION_')) {
 
 class PrestaformSubmitModuleFrontController extends ModuleFrontController
 {
-    public bool $ajax = true;
+    public $ajax = true;
 
     public function postProcess(): void
     {
