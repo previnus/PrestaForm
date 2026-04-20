@@ -226,7 +226,7 @@ class Prestaform extends Module implements WidgetInterface
      * @param string               $hookName      Unused — required by interface
      * @param array<string, mixed> $configuration Widget parameters (id_form / slug)
      */
-    public function renderWidget(string $hookName, array $configuration): string
+    public function renderWidget($hookName, array $configuration): string
     {
         return $this->renderFormByConfig($configuration);
     }
@@ -238,7 +238,7 @@ class Prestaform extends Module implements WidgetInterface
      * @param array<string, mixed> $configuration
      * @return array<string, mixed>
      */
-    public function getWidgetVariables(string $hookName, array $configuration): array
+    public function getWidgetVariables($hookName, array $configuration): array
     {
         return [];
     }
