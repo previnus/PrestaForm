@@ -36,7 +36,15 @@
           <td>{$f.id_form|intval}</td>
           <td><strong>{$f.name|default:''|escape}</strong></td>
           <td><code>{$f.slug|default:''|escape}</code></td>
-          <td>{$f.submission_count|default:0|intval}</td>
+          <td>
+            {if ($f.submission_count|default:0) > 0}
+              <a href="{$submissions_url|escape}&id_form={$f.id_form|intval}">
+                {$f.submission_count|intval}
+              </a>
+            {else}
+              0
+            {/if}
+          </td>
           <td>
             {if ($f.status|default:'') == 'active'}
               <span class="label label-success">Active</span>
@@ -47,6 +55,9 @@
           <td>
             <a href="{$base_url|escape}&action=edit&id_form={$f.id_form|intval}" class="btn btn-default btn-xs">
               <i class="icon-pencil"></i> Edit
+            </a>
+            <a href="{$submissions_url|escape}&id_form={$f.id_form|intval}" class="btn btn-info btn-xs">
+              <i class="icon-inbox"></i> Submissions
             </a>
             <form method="post" action="{$base_url|escape}" style="display:inline"
                   onsubmit="return confirm('Delete this form and all its submissions? This cannot be undone.')">

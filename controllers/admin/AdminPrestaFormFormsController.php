@@ -47,9 +47,10 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         $repo  = new \PrestaForm\Repository\FormRepository();
         $forms = $repo->findAll();
         $this->context->smarty->assign([
-            'forms'       => $forms,
-            'forms_count' => count($forms),
-            'base_url'    => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+            'forms'            => $forms,
+            'forms_count'      => count($forms),
+            'base_url'         => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+            'submissions_url'  => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
         ]);
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/list.tpl');
     }
@@ -143,6 +144,7 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             'mail_routing_init_json'  => $mailRoutingInitJson,
             'conditions_init_json'    => $conditionsInitJson,
             'base_url'                => $this->context->link->getAdminLink('AdminPrestaFormForms'),
+            'submissions_url'         => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
             'captcha_providers'       => ['none' => 'None', 'recaptcha_v2' => 'reCAPTCHA v2', 'recaptcha_v3' => 'reCAPTCHA v3', 'turnstile' => 'Cloudflare Turnstile'],
             'pf_tpl_dir'              => _PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/',
         ]);

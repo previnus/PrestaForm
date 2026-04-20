@@ -61,6 +61,7 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
             'per_page'    => $perPage,
             'pages'       => (int) ceil($total / $perPage),
             'base_url'    => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
+            'forms_url'   => $this->context->link->getAdminLink('AdminPrestaFormForms'),
         ]);
 
         return $this->context->smarty->fetch(

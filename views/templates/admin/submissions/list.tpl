@@ -1,5 +1,10 @@
 <div class="panel">
-  <div class="panel-heading"><i class="icon-inbox"></i> PrestaForm — Submissions</div>
+  <div class="panel-heading">
+    <i class="icon-inbox"></i> PrestaForm — Submissions
+    <a href="{$forms_url|escape}" class="btn btn-default btn-sm pull-right">
+      <i class="icon-arrow-left"></i> Back to Forms
+    </a>
+  </div>
   <div class="panel-body">
 
     <p class="text-muted" style="margin-bottom:15px">

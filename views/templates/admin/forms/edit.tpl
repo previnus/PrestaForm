@@ -2,6 +2,11 @@
   <div class="panel-heading">
     <i class="icon-edit"></i>
     {if $form.id_form > 0}Edit Form: {$form.name|escape}{else}New Form{/if}
+    {if $form.id_form > 0}
+    <a href="{$submissions_url|escape}&id_form={$form.id_form|intval}" class="btn btn-info btn-sm pull-right" style="margin-left:6px">
+      <i class="icon-inbox"></i> View Submissions
+    </a>
+    {/if}
     <a href="{$base_url|escape}" class="btn btn-default btn-sm pull-right">
       <i class="icon-arrow-left"></i> Back to Forms
     </a>
