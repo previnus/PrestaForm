@@ -206,6 +206,14 @@
 
   const OPERATORS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty'];
 
+  const OPERATOR_LABELS = {
+    equals:       'is',
+    not_equals:   'is not',
+    contains:     'contains',
+    is_empty:     'is blank',
+    is_not_empty: 'is not blank',
+  };
+
   function makeFieldSelect(cls, selected) {
     var opts = fieldNames.map(function (n) {
       return '<option value="' + n + '"' + (n === selected ? ' selected' : '') + '>' + n + '</option>';
@@ -215,7 +223,8 @@
 
   function makeOperatorSelect(selected) {
     var opts = OPERATORS.map(function (op) {
-      return '<option value="' + op + '"' + (op === selected ? ' selected' : '') + '>' + op.replace('_', ' ') + '</option>';
+      return '<option value="' + op + '"' + (op === selected ? ' selected' : '') + '>'
+        + (OPERATOR_LABELS[op] || op) + '</option>';
     }).join('');
     return '<select class="form-control pf-rule-operator">' + opts + '</select>';
   }
@@ -224,6 +233,11 @@
   document.addEventListener('click', function (e) {
     if (e.target.closest('.pf-remove-cg')) {
       e.target.closest('.pf-cg').remove();
+      // Show the empty-state message when the last group is removed
+      if (document.querySelectorAll('.pf-cg').length === 0) {
+        var msg = document.getElementById('pf-no-conditions-msg');
+        if (msg) { msg.style.display = ''; }
+      }
     }
     if (e.target.closest('.pf-add-rule')) {
       const rulesContainer = e.target.closest('.pf-cg').querySelector('.pf-cg-rules');
@@ -241,13 +255,17 @@
   });
 
   function initConditionsUI() {
-    // Collect field names now that DOM is ready
-    fieldNames = Array.from(document.querySelectorAll('[data-pf-name]'))
-      .map(function (el) { return el.dataset.pfName; });
+    // Field names are injected by PHP via Media::addJsDef as pfFieldNames.
+    // (The [data-pf-name] elements that exist on the front-end rendered form
+    // are not present in the admin form editor, so a DOM query would yield [].)
+    fieldNames = (typeof pfFieldNames !== 'undefined' && Array.isArray(pfFieldNames))
+      ? pfFieldNames : [];
 
     var addCgBtn = document.getElementById('pf-add-cg');
     if (addCgBtn) {
       addCgBtn.addEventListener('click', function () {
+        var msg = document.getElementById('pf-no-conditions-msg');
+        if (msg) { msg.style.display = 'none'; }
         var tpl = `
         <div class="panel panel-default pf-cg">
           <div class="panel-heading">
@@ -482,6 +500,38 @@
   }
 
   function initSettingsUI() {
+    // ── CAPTCHA provider → show/hide inline key fields ────────────────────────
+    // Must target the <select> specifically — the Form Builder tab has a hidden
+    // <input name="captcha_provider"> that would otherwise match first.
+    var captchaSelect = document.querySelector('select[name="captcha_provider"]');
+    if (captchaSelect) {
+      var sectionMap = {
+        recaptcha_v2: 'pf-captcha-v2-keys',
+        recaptcha_v3: 'pf-captcha-v3-keys',
+        turnstile:    'pf-captcha-turnstile-keys',
+      };
+      function applyCaptchaState() {
+        var provider = captchaSelect.value;
+        // Hide all sections and disable their inputs so they don't POST
+        Object.values(sectionMap).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) { return; }
+          el.style.display = 'none';
+          el.querySelectorAll('input').forEach(function (inp) { inp.disabled = true; });
+        });
+        // Show the matching section and enable its inputs
+        if (sectionMap[provider]) {
+          var active = document.getElementById(sectionMap[provider]);
+          if (active) {
+            active.style.display = '';
+            active.querySelectorAll('input').forEach(function (inp) { inp.disabled = false; });
+          }
+        }
+      }
+      captchaSelect.addEventListener('change', applyCaptchaState);
+      applyCaptchaState(); // apply on page load for the currently saved provider
+    }
+
     // ── Retention custom-days input toggle ────────────────────────────────────
     var retentionSel = document.getElementById('retention-select');
     var retentionInput = document.getElementById('retention-custom-input');
