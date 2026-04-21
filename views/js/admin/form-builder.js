@@ -251,6 +251,16 @@
     return '<input type="text" class="form-control pf-rule-value" placeholder="value" value="' + escHtml(val) + '">';
   }
 
+  function syncValueVisibility(ruleEl) {
+    var op  = ruleEl.querySelector('.pf-rule-operator');
+    var col = ruleEl.querySelector('.pf-rule-value-col');
+    if (!op || !col) { return; }
+    var noValue = op.value === 'is_empty' || op.value === 'is_not_empty';
+    col.style.display = noValue ? 'none' : '';
+    var inp = col.querySelector('.pf-rule-value');
+    if (inp) { inp.disabled = noValue; }
+  }
+
   // Delegated handlers for add/remove rule buttons — safe to wire at IIFE time
   document.addEventListener('click', function (e) {
     if (e.target.closest('.pf-remove-cg')) {
@@ -340,6 +350,8 @@
         document.getElementById('conditions_json').value = JSON.stringify(groups);
       });
     }
+
+    document.querySelectorAll('.pf-rule').forEach(syncValueVisibility);
   }
 
   // ── Webhook UI ─────────────────────────────────────────────────────────────
@@ -414,6 +426,23 @@
         .then(function () { panel.remove(); });
     } else {
       e.target.closest('.pf-webhook-new').remove();
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    var ruleEl = e.target.closest('.pf-rule');
+    if (!ruleEl) { return; }
+
+    if (e.target.classList.contains('pf-rule-operator')) {
+      syncValueVisibility(ruleEl);
+    }
+
+    if (e.target.classList.contains('pf-rule-field')) {
+      var col = ruleEl.querySelector('.pf-rule-value-col');
+      if (col) {
+        col.innerHTML = makeValueInput(e.target.value, '');
+      }
+      syncValueVisibility(ruleEl);
     }
   });
 
