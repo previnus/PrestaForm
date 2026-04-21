@@ -5,6 +5,10 @@ namespace PrestaForm\Service;
 
 class EmailRouter
 {
+    public function __construct(
+        private readonly ShortcodeParser $parser = new ShortcodeParser()
+    ) {}
+
     /**
      * Render a subject/body template, substituting [field] and system variables.
      *
@@ -16,7 +20,7 @@ class EmailRouter
      *   [_all_fields]  — replaced with an HTML table of all submitted fields and values
      *
      * @param array<string, mixed> $submission  Field name → value
-     * @param array<string, mixed> $form        Form row (needs 'name' key)
+     * @param array<string, mixed> $form        Form row (needs 'name' and 'template' keys)
      */
     public function renderTemplate(string $template, array $submission, array $form): string
     {
@@ -29,7 +33,10 @@ class EmailRouter
         $vars['[_form_title]'] = (string) ($form['name'] ?? '');
         $vars['[_date]']       = date('Y-m-d H:i:s');
         $vars['[_ip]']         = $_SERVER['REMOTE_ADDR'] ?? '';
-        $vars['[_all_fields]'] = $this->buildAllFieldsTable($submission);
+        $vars['[_all_fields]'] = $this->buildAllFieldsTable(
+            $submission,
+            $this->parseFieldLabels((string) ($form['template'] ?? ''))
+        );
         $vars['[_shop_name]']  = (string) \Configuration::get('PS_SHOP_NAME');
         $vars['[_shop_email]'] = (string) \Configuration::get('PS_SHOP_EMAIL');
 
@@ -37,32 +44,53 @@ class EmailRouter
     }
 
     /**
-     * Build a simple HTML table of all submitted field→value pairs.
+     * Derive a name → friendly-label map from a form template string.
+     * Uses the field's placeholder param when present; humanises the slug otherwise.
+     *
+     * @return array<string, string>
+     */
+    private function parseFieldLabels(string $template): array
+    {
+        $labels = [];
+        foreach ($this->parser->parse($template) as $field) {
+            if ($field['name'] === '') {
+                continue;
+            }
+            $labels[$field['name']] = $field['params']['placeholder']
+                ?? ucwords(str_replace(['-', '_'], ' ', $field['name']));
+        }
+        return $labels;
+    }
+
+    /**
+     * Build a clean HTML table of all submitted field→value pairs.
+     * Uses friendly labels instead of raw field slugs; no column headers.
      *
      * @param array<string, mixed> $submission
+     * @param array<string, string> $labels  name → friendly label (from parseFieldLabels)
      */
-    private function buildAllFieldsTable(array $submission): string
+    private function buildAllFieldsTable(array $submission, array $labels = []): string
     {
         if (empty($submission)) {
             return '';
         }
 
         $rows = '';
+        $i    = 0;
         foreach ($submission as $key => $value) {
+            $label        = $labels[$key] ?? ucwords(str_replace(['-', '_'], ' ', $key));
             $displayValue = is_array($value) ? implode(', ', $value) : (string) $value;
-            $rows .= '<tr>'
-                . '<td style="padding:4px 8px;font-weight:bold;white-space:nowrap">'
-                . htmlspecialchars($key) . '</td>'
-                . '<td style="padding:4px 8px">'
+            $bg           = ($i % 2 === 0) ? '#f5f7fa' : '#ffffff';
+            $rows .= '<tr style="background:' . $bg . '">'
+                . '<td style="padding:10px 14px;font-weight:600;color:#555;width:38%;vertical-align:top;border-bottom:1px solid #e8eaed">'
+                . htmlspecialchars($label) . '</td>'
+                . '<td style="padding:10px 14px;color:#222;vertical-align:top;border-bottom:1px solid #e8eaed">'
                 . nl2br(htmlspecialchars($displayValue)) . '</td>'
                 . '</tr>';
+            $i++;
         }
 
-        return '<table style="border-collapse:collapse;width:100%">'
-            . '<thead><tr>'
-            . '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #ccc">Field</th>'
-            . '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #ccc">Value</th>'
-            . '</tr></thead>'
+        return '<table style="border-collapse:collapse;width:100%;max-width:600px;font-family:sans-serif;font-size:14px">'
             . '<tbody>' . $rows . '</tbody>'
             . '</table>';
     }

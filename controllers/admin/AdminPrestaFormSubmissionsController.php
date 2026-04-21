@@ -60,6 +60,7 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
             'page'        => $page,
             'per_page'    => $perPage,
             'pages'       => (int) ceil($total / $perPage),
+            'page_range'  => range(1, max(1, (int) ceil($total / $perPage))),
             'base_url'    => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
             'forms_url'   => $this->context->link->getAdminLink('AdminPrestaFormForms'),
         ]);
@@ -108,9 +109,23 @@ class AdminPrestaFormSubmissionsController extends ModuleAdminController
             }
         }
 
+        // Build field label map: slug → placeholder (or humanised slug as fallback)
+        $fieldLabels = [];
+        $form = (new \PrestaForm\Repository\FormRepository())->findById((int) ($sub['id_form'] ?? 0));
+        if ($form) {
+            $parser = new \PrestaForm\Service\ShortcodeParser();
+            foreach ($parser->parse((string) $form['template']) as $field) {
+                if ($field['name'] !== '') {
+                    $fieldLabels[$field['name']] = $field['params']['placeholder']
+                        ?? ucwords(str_replace(['-', '_'], ' ', $field['name']));
+                }
+            }
+        }
+
         $this->context->smarty->assign([
-            'submission' => $sub,
-            'base_url'   => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
+            'submission'   => $sub,
+            'field_labels' => $fieldLabels,
+            'base_url'     => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
         ]);
 
         return $this->context->smarty->fetch(

@@ -29,13 +29,24 @@ class FormRenderer
             $template
         ) ?? $template;
 
-        $css           = $this->renderCss((string) ($form['custom_css'] ?? ''), $formId);
-        $condJson      = json_encode($conditionRules, JSON_UNESCAPED_UNICODE) ?: '[]';
-        $enctype       = str_contains($template, '[file') ? ' enctype="multipart/form-data"' : '';
-        $captchaScript  = $this->renderCaptchaScript((string) ($form['captcha_provider'] ?? 'none'), $formId);
+        $css            = $this->renderCss((string) ($form['custom_css'] ?? ''), $formId);
+        $condJson       = json_encode($conditionRules, JSON_UNESCAPED_UNICODE) ?: '[]';
+        $enctype        = str_contains($template, '[file') ? ' enctype="multipart/form-data"' : '';
+        $provider       = (string) ($form['captcha_provider'] ?? 'none');
+        $captchaScript  = $this->renderCaptchaScript($provider, $formId);
+        $captchaWidget  = $this->renderCaptchaWidget($provider);
         $safeActionUrl  = htmlspecialchars($actionUrl, ENT_QUOTES, 'UTF-8');
         $safeToken      = htmlspecialchars($token,     ENT_QUOTES, 'UTF-8');
         $safeSuccessMsg = htmlspecialchars((string) ($form['success_message'] ?? ''), ENT_QUOTES, 'UTF-8');
+
+        // Inject the CAPTCHA widget before the submit button
+        if ($captchaWidget !== '') {
+            $body = str_replace(
+                '<div class="pf-field pf-field-submit">',
+                $captchaWidget . '<div class="pf-field pf-field-submit">',
+                $body
+            );
+        }
 
         return <<<HTML
 <div id="prestaform-{$formId}" class="prestaform-wrapper" data-success-message="{$safeSuccessMsg}">
@@ -62,6 +73,31 @@ HTML;
         // Strip any </style> sequences to prevent CSS context breakout / XSS
         $safeCss = str_ireplace('</style', '<\\/style', $css);
         return "<style>\n#prestaform-{$formId} { {$safeCss} }\n</style>";
+    }
+
+    private function renderCaptchaWidget(string $provider): string
+    {
+        return match ($provider) {
+            'recaptcha_v2' =>
+                '<div class="pf-field pf-field-captcha">'
+                . '<div class="g-recaptcha" data-sitekey="'
+                . htmlspecialchars($this->getSetting('recaptcha_v2_site_key'), ENT_QUOTES, 'UTF-8')
+                . '"></div></div>',
+            'turnstile' =>
+                '<div class="pf-field pf-field-captcha">'
+                . '<div class="cf-turnstile" data-sitekey="'
+                . htmlspecialchars($this->getSetting('turnstile_site_key'), ENT_QUOTES, 'UTF-8')
+                . '"></div></div>',
+            default => '',
+        };
+    }
+
+    private function getSetting(string $key): string
+    {
+        return (string) \Db::getInstance()->getValue(
+            'SELECT setting_value FROM `' . _DB_PREFIX_ . 'pf_settings`
+             WHERE setting_key = \'' . pSQL($key) . '\''
+        );
     }
 
     private function renderCaptchaScript(string $provider, int $formId): string

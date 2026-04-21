@@ -50,8 +50,8 @@
           <td>
             {if !empty($s.data)}
             {foreach $s.data as $k => $v}
-              {if $k@index < 3}
-                <span class="label label-default">{$k|escape}</span>: {$v|escape|truncate:40}
+              {if $v@index < 3}
+                <span class="label label-default">{$k|replace:'-':' '|replace:'_':' '|capitalize}</span>: {$v|escape|truncate:40}
                 &nbsp;
               {/if}
             {/foreach}
@@ -76,11 +76,11 @@
 
     {if $pages > 1}
     <ul class="pagination">
-      {section name=p loop=$pages start=1}
-        <li class="{if $page == $smarty.section.p.index}active{/if}">
-          <a href="{$base_url|escape}&page={$smarty.section.p.index}">{$smarty.section.p.index}</a>
+      {foreach $page_range as $p}
+        <li class="{if $page == $p}active{/if}">
+          <a href="{$base_url|escape}&page={$p}">{$p}</a>
         </li>
-      {/section}
+      {/foreach}
     </ul>
     {/if}
   </div>

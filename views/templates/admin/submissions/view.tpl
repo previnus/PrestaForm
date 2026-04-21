@@ -24,7 +24,7 @@
         {if !empty($submission.data)}
         {foreach $submission.data as $k => $v}
         <tr>
-          <td><strong>{$k|escape}</strong></td>
+          <td><strong>{if isset($field_labels[$k])}{$field_labels[$k]|escape}{else}{$k|replace:'-':' '|replace:'_':' '|capitalize}{/if}</strong></td>
           <td>{$v|escape|nl2br}</td>
         </tr>
         {/foreach}

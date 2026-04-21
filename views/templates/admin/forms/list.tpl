@@ -7,6 +7,17 @@
   </div>
   <div class="panel-body">
 
+    <form method="post" action="{$base_url|escape}" enctype="multipart/form-data"
+          style="margin-bottom:15px;padding:12px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px">
+      <input type="hidden" name="action" value="import_json">
+      <strong><i class="icon-upload"></i> Import Form</strong>
+      <span class="text-muted" style="font-size:12px;margin-left:6px">Upload a .json file exported from PrestaForm</span>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+        <input type="file" name="import_file" accept=".json" class="form-control" style="max-width:320px">
+        <button type="submit" class="btn btn-default btn-sm"><i class="icon-cloud-upload"></i> Import</button>
+      </div>
+    </form>
+
     <p class="text-muted" style="margin-bottom:15px">
       Each form you create can be embedded anywhere on your storefront using a simple shortcode.
       Click <strong>New Form</strong> to get started, or <strong>Edit</strong> an existing form to update its fields, emails, webhooks, and settings.
@@ -58,6 +69,9 @@
             </a>
             <a href="{$submissions_url|escape}&id_form={$f.id_form|intval}" class="btn btn-info btn-xs">
               <i class="icon-inbox"></i> Submissions
+            </a>
+            <a href="{$base_url|escape}&action=export_json&id_form={$f.id_form|intval}" class="btn btn-default btn-xs">
+              <i class="icon-download"></i> Export
             </a>
             <form method="post" action="{$base_url|escape}" style="display:inline"
                   onsubmit="return confirm('Delete this form and all its submissions? This cannot be undone.')">
