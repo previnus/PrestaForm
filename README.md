@@ -95,6 +95,10 @@ bash tools/build.sh
 
 This produces `prestaform.zip` in the project root, ready for upload to PrestaShop.
 
+## Author
+
+Previn Kalisetty Appadu — [previn@arcpromedia.com](mailto:previn@arcpromedia.com)
+
 ## License
 
 MIT

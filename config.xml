@@ -4,7 +4,7 @@
     <displayName><![CDATA[PrestaForm]]></displayName>
     <version><![CDATA[1.0.0]]></version>
     <description><![CDATA[CF7-style drag-and-drop form builder for PrestaShop 9]]></description>
-    <author><![CDATA[PrestaForm]]></author>
+    <author><![CDATA[Previn Kalisetty Appadu]]></author>
     <tab><![CDATA[front_office_features]]></tab>
     <is_configurable>1</is_configurable>
     <need_instance>0</need_instance>

@@ -25,7 +25,7 @@ class Prestaform extends Module implements WidgetInterface
         $this->name = 'prestaform';
         $this->tab = 'front_office_features';
         $this->version = '1.0.0';
-        $this->author = 'PrestaForm';
+        $this->author = 'Previn Kalisetty Appadu';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
