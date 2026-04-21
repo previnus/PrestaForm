@@ -154,26 +154,22 @@ class SubmissionService
 
     private function verifyCaptcha(string $provider, array $post): string
     {
-        $token = '';
-        $secret = '';
-
-        match ($provider) {
-            'recaptcha_v2', 'recaptcha_v3' => [
-                $token  = (string) ($post['g-recaptcha-response'] ?? ''),
-                $secret = (string) \Db::getInstance()->getValue(
-                    'SELECT setting_value FROM `' . _DB_PREFIX_ . 'pf_settings`
-                     WHERE setting_key = \'' . pSQL($provider . '_secret_key') . '\''
-                ),
-            ],
-            'turnstile' => [
-                $token  = (string) ($post['cf-turnstile-response'] ?? ''),
-                $secret = (string) \Db::getInstance()->getValue(
-                    'SELECT setting_value FROM `' . _DB_PREFIX_ . 'pf_settings`
-                     WHERE setting_key = \'turnstile_secret_key\''
-                ),
-            ],
-            default => null,
-        };
+        if ($provider === 'recaptcha_v2' || $provider === 'recaptcha_v3') {
+            $token  = (string) ($post['g-recaptcha-response'] ?? '');
+            $secret = (string) \Db::getInstance()->getValue(
+                'SELECT setting_value FROM `' . _DB_PREFIX_ . 'pf_settings`
+                 WHERE setting_key = \'' . pSQL($provider . '_secret_key') . '\''
+            );
+        } elseif ($provider === 'turnstile') {
+            $token  = (string) ($post['cf-turnstile-response'] ?? '');
+            $secret = (string) \Db::getInstance()->getValue(
+                'SELECT setting_value FROM `' . _DB_PREFIX_ . 'pf_settings`
+                 WHERE setting_key = \'turnstile_secret_key\''
+            );
+        } else {
+            $token  = '';
+            $secret = '';
+        }
 
         if (!$token) {
             return 'Please complete the CAPTCHA.';

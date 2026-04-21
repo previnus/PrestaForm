@@ -395,8 +395,8 @@
                   </div>
                   <div class="col-sm-3">
                     <select class="form-control pf-rule-operator">
-                      {foreach ['equals','not_equals','contains','is_empty','is_not_empty'] as $op}
-                        <option value="{$op}" {if ($rule.operator|default:'')==$op}selected{/if}>{$op|replace:'_':' '}</option>
+                      {foreach ['equals' => 'is', 'not_equals' => 'is not', 'contains' => 'contains', 'is_empty' => 'is blank', 'is_not_empty' => 'is not blank'] as $op => $opLabel}
+                        <option value="{$op}" {if ($rule.operator|default:'')==$op}selected{/if}>{$opLabel}</option>
                       {/foreach}
                     </select>
                   </div>
