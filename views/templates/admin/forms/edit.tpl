@@ -400,7 +400,7 @@
                       {/foreach}
                     </select>
                   </div>
-                  <div class="col-sm-4">
+                  <div class="col-sm-4 pf-rule-value-col">
                     <input type="text" class="form-control pf-rule-value" value="{$rule.value|default:''|escape}" placeholder="value to match">
                   </div>
                   <div class="col-sm-1">

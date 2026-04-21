@@ -214,6 +214,14 @@
     is_not_empty: 'is not blank',
   };
 
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function makeFieldSelect(cls, selected) {
     var opts = fieldNames.map(function (n) {
       return '<option value="' + n + '"' + (n === selected ? ' selected' : '') + '>' + n + '</option>';
@@ -229,6 +237,20 @@
     return '<select class="form-control pf-rule-operator">' + opts + '</select>';
   }
 
+  function makeValueInput(fieldName, currentValue) {
+    var meta = (window.pfFieldMeta && window.pfFieldMeta[fieldName]) || null;
+    var val  = currentValue != null ? String(currentValue) : '';
+    if (meta && ['select', 'radio', 'checkbox'].indexOf(meta.type) !== -1) {
+      var opts = (meta.options || []).map(function (o) {
+        return '<option value="' + escHtml(o.value) + '"'
+          + (o.value === val ? ' selected' : '') + '>'
+          + escHtml(o.label) + '</option>';
+      }).join('');
+      return '<select class="form-control pf-rule-value">' + opts + '</select>';
+    }
+    return '<input type="text" class="form-control pf-rule-value" placeholder="value" value="' + escHtml(val) + '">';
+  }
+
   // Delegated handlers for add/remove rule buttons — safe to wire at IIFE time
   document.addEventListener('click', function (e) {
     if (e.target.closest('.pf-remove-cg')) {
@@ -240,14 +262,19 @@
       }
     }
     if (e.target.closest('.pf-add-rule')) {
-      const rulesContainer = e.target.closest('.pf-cg').querySelector('.pf-cg-rules');
-      rulesContainer.insertAdjacentHTML('beforeend', `
-        <div class="pf-rule row" style="margin-bottom:8px">
-          <div class="col-sm-4">${makeFieldSelect('pf-rule-field', fieldNames[0])}</div>
-          <div class="col-sm-3">${makeOperatorSelect('equals')}</div>
-          <div class="col-sm-4"><input type="text" class="form-control pf-rule-value" placeholder="value"></div>
-          <div class="col-sm-1"><button type="button" class="btn btn-danger btn-xs pf-remove-rule"><i class="icon-trash"></i></button></div>
-        </div>`);
+      var cg             = e.target.closest('.pf-cg');
+      var targetField    = cg && cg.querySelector('.pf-cg-target')
+        ? cg.querySelector('.pf-cg-target').value
+        : (fieldNames[0] || '');
+      var rulesContainer = cg.querySelector('.pf-cg-rules');
+      rulesContainer.insertAdjacentHTML('beforeend',
+        '<div class="pf-rule row" style="margin-bottom:8px">'
+        + '<div class="col-sm-4">' + makeFieldSelect('pf-rule-field', targetField) + '</div>'
+        + '<div class="col-sm-3">' + makeOperatorSelect('equals') + '</div>'
+        + '<div class="col-sm-4 pf-rule-value-col">' + makeValueInput(targetField, '') + '</div>'
+        + '<div class="col-sm-1"><button type="button" class="btn btn-danger btn-xs pf-remove-rule">'
+        + '<i class="icon-trash"></i></button></div>'
+        + '</div>');
     }
     if (e.target.closest('.pf-remove-rule')) {
       e.target.closest('.pf-rule').remove();
