@@ -112,6 +112,32 @@ class AdminPrestaFormFormsController extends ModuleAdminController
 
         $conditions = $id ? $cRepo->findByForm($id) : [];
 
+        // Inject field names into JS so the condition/routing builder selects populate correctly.
+        // (They cannot use [data-pf-name] queries — those elements only exist on the front-end.)
+        $fieldNames = array_values(array_filter(array_column($fields, 'name')));
+        \Media::addJsDef(['pfFieldNames' => $fieldNames]);
+
+        $fieldMeta = [];
+        foreach ($fields as $f) {
+            if ($f['name'] === '') {
+                continue;
+            }
+            $fieldMeta[$f['name']] = [
+                'type'    => $f['type'],
+                'options' => $f['options'],
+            ];
+        }
+        \Media::addJsDef(['pfFieldMeta' => $fieldMeta]);
+
+        // Current CAPTCHA key values — passed to template for inline key editor in Settings tab.
+        $captchaKeyNames = ['recaptcha_v2_site_key', 'recaptcha_v2_secret_key', 'recaptcha_v3_site_key', 'recaptcha_v3_secret_key', 'turnstile_site_key', 'turnstile_secret_key'];
+        $captchaSettings = [];
+        foreach ($captchaKeyNames as $k) {
+            $captchaSettings[$k] = (string) \Db::getInstance()->getValue(
+                'SELECT setting_value FROM `' . _DB_PREFIX_ . 'pf_settings` WHERE setting_key = \'' . pSQL($k) . '\''
+            );
+        }
+
         // Pre-serialise conditions for the hidden JSON field fallback.
         $conditionsInitJson = json_encode($conditions, JSON_UNESCAPED_UNICODE);
 
@@ -138,6 +164,8 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         $this->context->smarty->assign([
             'form'                    => $form ?? $this->emptyForm(),
             'fields'                  => $fields,
+            'field_names_json'        => json_encode($fieldNames, JSON_UNESCAPED_UNICODE),
+            'field_meta_json'         => json_encode($fieldMeta, JSON_UNESCAPED_UNICODE),
             'webhooks'                => $id ? $wRepo->findByForm($id) : [],
             'conditions'              => $conditions,
             'email_routes'            => $emailRoutes,
@@ -146,6 +174,7 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             'base_url'                => $this->context->link->getAdminLink('AdminPrestaFormForms'),
             'submissions_url'         => $this->context->link->getAdminLink('AdminPrestaFormSubmissions'),
             'captcha_providers'       => ['none' => 'None', 'recaptcha_v2' => 'reCAPTCHA v2', 'recaptcha_v3' => 'reCAPTCHA v3', 'turnstile' => 'Cloudflare Turnstile'],
+            'captcha_settings'        => $captchaSettings,
             'pf_tpl_dir'              => _PS_MODULE_DIR_ . 'prestaform/views/templates/admin/forms/',
         ]);
 
@@ -174,6 +203,10 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             $this->handleTestWebhook();
         } elseif ($action === 'delete_webhook') {
             $this->handleDeleteWebhook();
+        } elseif ($action === 'export_json') {
+            $this->handleExportJson();
+        } elseif ($action === 'import_json') {
+            $this->handleImportJson();
         }
 
         parent::postProcess();
@@ -238,6 +271,22 @@ class AdminPrestaFormFormsController extends ModuleAdminController
             'captcha_provider' => $captchaProvider,
             'retention_days'   => ($retentionRaw !== '' && $retentionRaw !== false) ? (int) $retentionRaw : null,
         ]);
+
+        // Save CAPTCHA keys submitted from the inline editor in the Settings tab.
+        // Only the visible provider's inputs are enabled (others are disabled by JS),
+        // so only the selected provider's keys are posted and saved here.
+        $captchaKeyNames = ['recaptcha_v2_site_key', 'recaptcha_v2_secret_key', 'recaptcha_v3_site_key', 'recaptcha_v3_secret_key', 'turnstile_site_key', 'turnstile_secret_key'];
+        foreach ($captchaKeyNames as $keyName) {
+            $raw = Tools::getValue($keyName, false);
+            if ($raw !== false) {
+                $v = pSQL((string) $raw);
+                \Db::getInstance()->execute(
+                    'INSERT INTO `' . _DB_PREFIX_ . 'pf_settings` (setting_key, setting_value)
+                     VALUES (\'' . pSQL($keyName) . '\', \'' . $v . '\')
+                     ON DUPLICATE KEY UPDATE setting_value = \'' . $v . '\''
+                );
+            }
+        }
 
         // Redirect back to the edit page (PRG pattern — prevents double-submit on refresh,
         // and keeps user in context instead of landing on the forms list).
@@ -415,6 +464,139 @@ class AdminPrestaFormFormsController extends ModuleAdminController
         $repo = new \PrestaForm\Repository\WebhookRepository();
         $repo->delete($id);
         $this->outputJson(['success' => true]);
+    }
+
+    private function handleExportJson(): void
+    {
+        $id   = (int) Tools::getValue('id_form');
+        $repo = new \PrestaForm\Repository\FormRepository();
+        $form = $repo->findById($id);
+
+        if (!$form) {
+            $this->errors[] = 'Form not found.';
+            return;
+        }
+
+        $strip = ['id_form', 'date_add', 'date_upd'];
+        foreach ($strip as $k) {
+            unset($form[$k]);
+        }
+
+        $webhooks = (new \PrestaForm\Repository\WebhookRepository())->findByForm($id);
+        foreach ($webhooks as &$w) {
+            unset($w['id_webhook'], $w['id_form']);
+        }
+        unset($w);
+
+        $conditions = (new \PrestaForm\Repository\ConditionRepository())->findByForm($id);
+        foreach ($conditions as &$c) {
+            unset($c['id_condition_group'], $c['id_form']);
+        }
+        unset($c);
+
+        $routes = (new \PrestaForm\Repository\EmailRouteRepository())->findByForm($id);
+        foreach ($routes as &$r) {
+            unset($r['id_route'], $r['id_form']);
+        }
+        unset($r);
+
+        $export = array_merge(
+            ['_version' => '1', '_export_date' => date('Y-m-d')],
+            $form,
+            [
+                'webhooks'     => $webhooks,
+                'conditions'   => $conditions,
+                'email_routes' => $routes,
+            ]
+        );
+
+        $filename = 'prestaform-' . ($form['slug'] ?? 'form') . '-' . date('Y-m-d') . '.json';
+
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    private function handleImportJson(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return;
+        }
+
+        if (empty($_FILES['import_file']['tmp_name'])) {
+            $this->errors[] = 'No file uploaded.';
+            return;
+        }
+
+        $content = file_get_contents($_FILES['import_file']['tmp_name']);
+        if ($content === false) {
+            $this->errors[] = 'Could not read uploaded file.';
+            return;
+        }
+
+        $data = json_decode($content, true);
+        if (!is_array($data) || empty($data['name'])) {
+            $this->errors[] = 'Invalid export file.';
+            return;
+        }
+
+        $formRepo = new \PrestaForm\Repository\FormRepository();
+
+        // Deduplicate slug
+        $slug = (string) ($data['slug'] ?? $this->slugify((string) $data['name']));
+        if ($formRepo->slugExists($slug)) {
+            $base    = $slug;
+            $counter = 2;
+            while ($formRepo->slugExists($base . '-' . $counter)) {
+                $counter++;
+            }
+            $slug = $base . '-' . $counter;
+        }
+
+        $newId = $formRepo->save([
+            'name'             => (string) $data['name'],
+            'slug'             => $slug,
+            'template'         => (string) ($data['template']         ?? ''),
+            'custom_css'       => (string) ($data['custom_css']       ?? ''),
+            'success_message'  => (string) ($data['success_message']  ?? ''),
+            'status'           => 'draft',
+            'captcha_provider' => (string) ($data['captcha_provider'] ?? 'none'),
+            'retention_days'   => isset($data['retention_days']) ? (int) $data['retention_days'] : null,
+        ]);
+
+        if (!empty($data['webhooks']) && is_array($data['webhooks'])) {
+            $wRepo = new \PrestaForm\Repository\WebhookRepository();
+            foreach ($data['webhooks'] as $w) {
+                $w['id_form'] = $newId;
+                unset($w['id_webhook']);
+                $wRepo->save($w);
+            }
+        }
+
+        if (!empty($data['conditions']) && is_array($data['conditions'])) {
+            $groups = array_map(static function (array $c): array {
+                unset($c['id_condition_group'], $c['id_form']);
+                return $c;
+            }, $data['conditions']);
+            (new \PrestaForm\Repository\ConditionRepository())->saveForForm($newId, $groups);
+        }
+
+        if (!empty($data['email_routes']) && is_array($data['email_routes'])) {
+            $routes = array_map(static function (array $r): array {
+                unset($r['id_route'], $r['id_form']);
+                return $r;
+            }, $data['email_routes']);
+            (new \PrestaForm\Repository\EmailRouteRepository())->saveForForm($newId, $routes);
+        }
+
+        \Tools::redirectAdmin(
+            $this->context->link->getAdminLink('AdminPrestaFormForms') .
+            '&action=edit&id_form=' . $newId . '&pf_saved=1'
+        );
     }
 
     private function outputJson(array $data): void

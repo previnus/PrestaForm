@@ -22,6 +22,11 @@
     <li>              <a href="#tab-settings"    data-toggle="tab" data-bs-toggle="tab"><i class="icon-cog"></i> Settings</a></li>
   </ul>
 
+  {* Field names used by the condition builder JS. Injected inline so it is
+     guaranteed to execute before DOMContentLoaded fires initConditionsUI(). *}
+  <script>window.pfFieldNames = {$field_names_json|default:'[]'};</script>
+  <script>window.pfFieldMeta = {$field_meta_json|default:'{}'};</script>
+
   <div class="tab-content" style="padding:20px">
 
     {* ── Tab 1: Form Builder ── *}
@@ -499,11 +504,53 @@
                 <strong>reCAPTCHA v3</strong> — invisible scoring; no interaction needed.<br>
                 <strong>Cloudflare Turnstile</strong> — privacy-friendly alternative to reCAPTCHA.<br>
                 <span class="text-warning"><i class="icon-warning-sign"></i>
-                  API keys (site key &amp; secret key) for reCAPTCHA and Turnstile are entered in the
-                  <strong>PrestaForm &rsaquo; Settings</strong> page (use the left-hand menu or the Settings tab in the module manager),
-                  not here. Select the provider above, save this form, then go to Settings to paste in your keys.
+                  API keys (site key &amp; secret key) for reCAPTCHA and Turnstile can be entered below when you select a provider, or on the global <strong>PrestaForm &rsaquo; Settings</strong> page.
                 </span>
               </p>
+
+              {* Inline key editor — shown/hidden by JS based on selected provider *}
+              <div id="pf-captcha-v2-keys" class="pf-captcha-key-section" style="display:none;margin-top:10px;padding:12px;border:1px solid #d1d5da;border-radius:4px;background:#f9f9f9">
+                <strong style="font-size:12px;display:block;margin-bottom:8px"><i class="icon-shield"></i> reCAPTCHA v2 Keys</strong>
+                <div class="form-group" style="margin-bottom:8px">
+                  <label style="font-size:12px">Site Key</label>
+                  <input type="text" name="recaptcha_v2_site_key" class="form-control input-sm"
+                         value="{$captcha_settings.recaptcha_v2_site_key|default:''|escape}" placeholder="6LeXXXXX…" disabled>
+                </div>
+                <div class="form-group" style="margin-bottom:0">
+                  <label style="font-size:12px">Secret Key</label>
+                  <input type="text" name="recaptcha_v2_secret_key" class="form-control input-sm"
+                         value="{$captcha_settings.recaptcha_v2_secret_key|default:''|escape}" placeholder="6LeXXXXX…" disabled>
+                </div>
+              </div>
+
+              <div id="pf-captcha-v3-keys" class="pf-captcha-key-section" style="display:none;margin-top:10px;padding:12px;border:1px solid #d1d5da;border-radius:4px;background:#f9f9f9">
+                <strong style="font-size:12px;display:block;margin-bottom:8px"><i class="icon-shield"></i> reCAPTCHA v3 Keys</strong>
+                <div class="form-group" style="margin-bottom:8px">
+                  <label style="font-size:12px">Site Key</label>
+                  <input type="text" name="recaptcha_v3_site_key" class="form-control input-sm"
+                         value="{$captcha_settings.recaptcha_v3_site_key|default:''|escape}" placeholder="6LeXXXXX…" disabled>
+                </div>
+                <div class="form-group" style="margin-bottom:0">
+                  <label style="font-size:12px">Secret Key</label>
+                  <input type="text" name="recaptcha_v3_secret_key" class="form-control input-sm"
+                         value="{$captcha_settings.recaptcha_v3_secret_key|default:''|escape}" placeholder="6LeXXXXX…" disabled>
+                </div>
+              </div>
+
+              <div id="pf-captcha-turnstile-keys" class="pf-captcha-key-section" style="display:none;margin-top:10px;padding:12px;border:1px solid #d1d5da;border-radius:4px;background:#f9f9f9">
+                <strong style="font-size:12px;display:block;margin-bottom:8px"><i class="icon-cloud"></i> Cloudflare Turnstile Keys</strong>
+                <div class="form-group" style="margin-bottom:8px">
+                  <label style="font-size:12px">Site Key</label>
+                  <input type="text" name="turnstile_site_key" class="form-control input-sm"
+                         value="{$captcha_settings.turnstile_site_key|default:''|escape}" placeholder="0x4AAAAAAA…" disabled>
+                </div>
+                <div class="form-group" style="margin-bottom:0">
+                  <label style="font-size:12px">Secret Key</label>
+                  <input type="text" name="turnstile_secret_key" class="form-control input-sm"
+                         value="{$captcha_settings.turnstile_secret_key|default:''|escape}" placeholder="0x4AAAAAAA…" disabled>
+                </div>
+              </div>
+
             </div>
           </div>
           <div class="col-md-4">
