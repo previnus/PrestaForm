@@ -340,12 +340,14 @@
               value:    rule.querySelector('.pf-rule-value').value,
             });
           });
-          groups.push({
-            target_field: cg.querySelector('.pf-cg-target').value,
-            action:       cg.querySelector('.pf-cg-action').value,
-            logic:        cg.querySelector('.pf-cg-logic').value,
-            rules:        rules,
-          });
+          if (rules.length > 0) {
+            groups.push({
+              target_field: cg.querySelector('.pf-cg-target').value,
+              action:       cg.querySelector('.pf-cg-action').value,
+              logic:        cg.querySelector('.pf-cg-logic').value,
+              rules:        rules,
+            });
+          }
         });
         document.getElementById('conditions_json').value = JSON.stringify(groups);
       });
