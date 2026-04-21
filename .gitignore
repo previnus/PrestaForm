@@ -1,6 +1,9 @@
 /vendor/
 /uploads/
 /.superpowers/
+/.claude/
+/.bg-shell/
 *.DS_Store
 .phpunit.result.cache
 .phpunit.cache/
+/prestaform.zip
