@@ -110,7 +110,7 @@
           try {
             return JSON.parse(text);
           } catch (e) {
-            throw new Error('HTTP ' + status + ' — server returned non-JSON:\n' + text.substring(0, 500));
+            throw new Error('A network error occurred. Please try again.');
           }
         });
       })
@@ -152,7 +152,7 @@
         }
         const div = document.createElement('div');
         div.className = 'pf-global-error';
-        div.textContent = 'Submission error: ' + (err && err.message ? err.message : 'Please try again.');
+        div.textContent = err && err.message ? err.message : 'A network error occurred. Please try again.';
         form.prepend(div);
       });
   }
